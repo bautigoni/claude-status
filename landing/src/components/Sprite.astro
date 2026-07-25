@@ -1,0 +1,38 @@
+---
+/**
+ * Un estado del bichito, animado con la tira de sprites.
+ *
+ * El ancho de la tira se calcula a partir del ancho ya escalado del frame, no
+ * con background-size:auto: redondear la altura desalinearia los pasos y la
+ * animacion iria derivando un pixel por vuelta.
+ */
+import meta from "../../public/sprites/meta.json";
+
+interface Props {
+  state: "cocinando" | "esperando" | "termino" | "dormido";
+  height?: number;
+  class?: string;
+}
+
+const { state, height = 211, class: klass = "" } = Astro.props;
+
+const info = meta[state] as { frames: number; fps: number };
+const scale = height / meta.h;
+const frameW = Math.round(meta.w * scale);
+const dur = (info.frames / info.fps).toFixed(2);
+---
+
+<div
+  class:list={["sprite pixel", klass]}
+  role="img"
+  aria-label={`El bichito: ${state}`}
+  style={`
+    width:${frameW}px;
+    height:${height}px;
+    background-image:url(/sprites/${state}.png);
+    --strip:${frameW * info.frames}px;
+    --frames:${info.frames};
+    --dur:${dur}s;
+  `}
+>
+</div>

@@ -1,0 +1,20 @@
+{
+  "cocinando": {
+    "frames": 8,
+    "fps": 4
+  },
+  "esperando": {
+    "frames": 8,
+    "fps": 4
+  },
+  "termino": {
+    "frames": 5,
+    "fps": 3
+  },
+  "dormido": {
+    "frames": 6,
+    "fps": 3
+  },
+  "w": 183,
+  "h": 211
+}

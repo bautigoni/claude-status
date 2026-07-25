@@ -1,0 +1,29 @@
+{
+  "size": [
+    183,
+    239
+  ],
+  "text_y": 211,
+  "states": {
+    "cocinando": {
+      "frames": 8,
+      "fps": 4,
+      "mode": "pingpong"
+    },
+    "esperando": {
+      "frames": 8,
+      "fps": 4,
+      "mode": "pingpong"
+    },
+    "termino": {
+      "frames": 5,
+      "fps": 3,
+      "mode": "once"
+    },
+    "dormido": {
+      "frames": 6,
+      "fps": 3,
+      "mode": "pingpong"
+    }
+  }
+}

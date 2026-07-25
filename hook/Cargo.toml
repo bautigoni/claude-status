@@ -1,0 +1,17 @@
+[package]
+name = "bichito-hook"
+version = "1.0.0"
+edition = "2021"
+
+[dependencies]
+serde_json = "1"
+
+# Este binario corre en CADA llamada a herramienta, asi que se optimiza para
+# tamano y arranque. Medido: el equivalente empaquetado con PyInstaller tardaba
+# 249ms de mediana; esto tiene que quedar en un digito de ms.
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

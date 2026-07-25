@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+/* Paleta del bichito: la arcilla de Claude sobre un fondo calido y oscuro.
+   Se declara como tema de Tailwind v4, asi queda disponible como bg-clay,
+   text-ember, etc. en todo el sitio. */
+@theme {
+  --color-ink: #17140f;
+  --color-ink-soft: #211c16;
+  --color-ink-line: #322a21;
+  --color-clay: #d97757;
+  --color-clay-soft: #e08a6a;
+  --color-cream: #f2e9df;
+  --color-ash: #8c7f72;
+  --color-ember: #f0b429;
+
+  --font-sans: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Cascadia Code", "Consolas", ui-monospace, monospace;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    background: var(--color-ink);
+  }
+  body {
+    color: var(--color-cream);
+  }
+  ::selection {
+    background: var(--color-clay);
+    color: var(--color-ink);
+  }
+}
+
+@utility pixel {
+  /* el arte es pixel art: sin esto el navegador lo interpola y lo emborrona */
+  image-rendering: pixelated;
+}
+
+/* Animacion de sprites: la tira se corre un frame por paso. El ancho total va
+   por variable para que cada estado (que tiene distinta cantidad de frames)
+   reutilice la misma regla. */
+@keyframes sprite-run {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: calc(-1 * var(--strip)) 0;
+  }
+}
+
+.sprite {
+  background-repeat: no-repeat;
+  background-size: var(--strip) 100%;
+  animation: sprite-run var(--dur, 2s) steps(var(--frames)) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sprite {
+    animation: none;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+}

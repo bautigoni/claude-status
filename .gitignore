@@ -1,0 +1,23 @@
+# --- artefactos de compilacion ---
+dist/
+build/
+*.spec
+hook/target/
+landing/dist/
+landing/.astro/
+
+# --- dependencias ---
+node_modules/
+__pycache__/
+*.py[cod]
+
+# --- datos locales ---
+bichito.log
+state/
+bichito_config.json
+.claude/launch.json
+
+# --- sistema ---
+Thumbs.db
+desktop.ini
+.DS_Store
