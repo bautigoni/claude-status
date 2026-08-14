@@ -51,7 +51,9 @@ HOOKS = {
     # al bichito mudo.
     "Notification": [(None, "notify --voice")],
     "Stop": [(None, "idle --voice")],
-    "SessionEnd": [(None, "idle")],
+    # borra el archivo de estado: mientras exista, esa sesion cuenta como
+    # abierta y tiene su bichito
+    "SessionEnd": [(None, "fin")],
 }
 
 
@@ -170,6 +172,17 @@ def stop_running():
         pass
 
 
+def limpiar_estados():
+    """Vacia state/ menos el cache de uso del plan."""
+    sdir = core.state_dir()
+    for name in os.listdir(sdir):
+        if name.endswith(".json") and name != "usage.json":
+            try:
+                os.remove(os.path.join(sdir, name))
+            except OSError:
+                pass
+
+
 def install():
     """Copia la app, escribe los hooks y deja la config lista."""
     src = source_dir()
@@ -182,6 +195,11 @@ def install():
                 shutil.copytree(s, d, dirs_exist_ok=True)
             else:
                 shutil.copy2(s, d)
+
+    # Los estados viejos se tiran: son de sesiones que ya no existen y ahora
+    # cada archivo dibuja un bichito. Las sesiones abiertas se vuelven a anotar
+    # solas en su proxima llamada a herramienta.
+    limpiar_estados()
 
     data = read_settings()
     hooks = data.get("hooks") or {}
@@ -229,6 +247,11 @@ def install():
 
 def uninstall():
     """Saca los hooks propios y devuelve el llamado a la voz como estaba."""
+    # Los estados viejos se tiran: son de sesiones que ya no existen y ahora
+    # cada archivo dibuja un bichito. Las sesiones abiertas se vuelven a anotar
+    # solas en su proxima llamada a herramienta.
+    limpiar_estados()
+
     data = read_settings()
     hooks = data.get("hooks") or {}
     cfg = core.load_config()

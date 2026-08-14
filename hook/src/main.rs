@@ -5,7 +5,9 @@
 //! asi el panel puede prender y apagar cosas al instante, sin reiniciar Claude
 //! Code y sin editar un archivo que tambien es del usuario.
 //!
-//!     bichito-hook.exe working|waiting|idle|notify [--launch] [--voice]
+//!     bichito-hook.exe working|waiting|idle|notify|fin [--launch] [--voice]
+//!
+//! `fin` borra el archivo de estado: la sesion se cerro y su bichito se va.
 //!
 //! `notify` es el del evento Notification: ahi el estado no lo decide argv sino
 //! el campo `notification_type` del payload, porque bajo el mismo evento entran
@@ -275,12 +277,13 @@ fn load_config(dir: &Path) -> Config {
 ///
 /// El texto viaja por stdin, NUNCA por argv: los acentos se rompen por codepage
 /// al pasar por la linea de comandos.
-fn with_message(payload: &str, cfg: &Config, state: &str) -> String {
-    let mut v: serde_json::Value =
-        serde_json::from_str(payload).unwrap_or_else(|_| serde_json::json!({}));
-
-    let proyecto = v
-        .get("cwd")
+/// Nombre de la carpeta del proyecto, sacado del cwd del payload.
+///
+/// Es lo que dice la voz y, desde que hay un bichito por sesion, tambien lo que
+/// se lee abajo de cada uno: con seis Claude abiertos, el estado sin nombre no
+/// te dice a cual le esta hablando.
+fn proyecto(v: &serde_json::Value) -> String {
+    v.get("cwd")
         .and_then(|c| c.as_str())
         .map(|c| {
             c.trim_end_matches(['/', '\\'])
@@ -289,9 +292,16 @@ fn with_message(payload: &str, cfg: &Config, state: &str) -> String {
                 .unwrap_or("")
                 .to_string()
         })
-        .unwrap_or_default();
+        .unwrap_or_default()
+}
 
-    let plantilla = if state == "idle" {
+fn with_message(payload: &str, cfg: &Config, state: &str) -> String {
+    let mut v: serde_json::Value =
+        serde_json::from_str(payload).unwrap_or_else(|_| serde_json::json!({}));
+
+    let proyecto = proyecto(&v);
+
+    let plantilla = if state == "idle" || state == "fin" {
         &cfg.msg_done
     } else {
         &cfg.msg_waiting
@@ -316,23 +326,35 @@ fn write_state(dir: &Path, state: &str, payload: &str) {
     }
     let path = states.join(format!("{}.json", session_id(payload)));
 
+    // Fin de sesion: se borra el archivo. Que exista significa "este Claude
+    // sigue abierto", y de eso depende que el bichito muestre uno por sesion y
+    // no un cementerio de sesiones viejas.
+    if state == "fin" {
+        let _ = fs::remove_file(&path);
+        return;
+    }
+
+    let payload_json: serde_json::Value =
+        serde_json::from_str(payload).unwrap_or_else(|_| serde_json::json!({}));
+
     let t = now();
     let mut since = t;
     let mut focus: Vec<u32> = Vec::new();
-    if state == "waiting" {
-        focus = ancestros();
-    }
-    if state == "working" {
-        if let Ok(prev) = fs::read_to_string(&path) {
-            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&prev) {
-                let prev_state = v.get("state").and_then(|s| s.as_str()).unwrap_or("");
-                let prev_ts = v.get("ts").and_then(|s| s.as_f64()).unwrap_or(0.0);
-                // la cadena hasta la terminal se hereda: sacarla de nuevo seria
-                // un snapshot de procesos en cada llamada a herramienta
-                if let Some(f) = v.get("focus").and_then(|f| f.as_array()) {
-                    focus = f.iter().filter_map(|x| x.as_u64().map(|n| n as u32)).collect();
-                }
+    let mut habia_focus = false;
 
+    // El estado anterior se lee siempre (no solo en "working"): de ahi salen el
+    // arranque del turno y la cadena hasta la terminal. Antes se leia solo al
+    // trabajar, asi que el primer "idle" borraba la cadena y el click al bichito
+    // dejaba de llevarte a ningun lado.
+    if let Ok(prev) = fs::read_to_string(&path) {
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&prev) {
+            let prev_state = v.get("state").and_then(|s| s.as_str()).unwrap_or("");
+            let prev_ts = v.get("ts").and_then(|s| s.as_f64()).unwrap_or(0.0);
+            if let Some(f) = v.get("focus").and_then(|f| f.as_array()) {
+                habia_focus = true;
+                focus = f.iter().filter_map(|x| x.as_u64().map(|n| n as u32)).collect();
+            }
+            if state == "working" {
                 // Cuando Claude hace una pregunta, PreToolUse dispara DOS hooks
                 // a la vez: el de matcher "*" con "working" y el especifico con
                 // "waiting". Sin esta regla cual gana es azar y la pregunta se
@@ -352,11 +374,18 @@ fn write_state(dir: &Path, state: &str, payload: &str) {
         }
     }
 
+    // El snapshot de procesos cuesta ~14ms, asi que se saca una sola vez por
+    // sesion y se refresca en cada espera, que es cuando de verdad importa.
+    if state == "waiting" || (!habia_focus && state != "idle") {
+        focus = ancestros();
+    }
+
     let body = serde_json::json!({
         "state": state,
         "ts": t,
         "since": since,
         "focus": focus,
+        "proyecto": proyecto(&payload_json),
     })
     .to_string();
     let tmp = path.with_extension("tmp");
@@ -413,7 +442,7 @@ fn launch_pet(dir: &Path) {
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let Some(state) = args.first() else { return };
-    if !matches!(state.as_str(), "working" | "waiting" | "idle" | "notify") {
+    if !matches!(state.as_str(), "working" | "waiting" | "idle" | "notify" | "fin") {
         return;
     }
     let has = |f: &str| args.iter().any(|a| a == f);

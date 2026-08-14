@@ -4,6 +4,15 @@ Mascota flotante para Claude Code: te muestra si está trabajando, si te está
 esperando o si ya terminó, sin que tengas que mirar la terminal. Viene con un
 panel para prender y apagar cada cosa.
 
+**Hay un bichito por sesión de Claude abierta**, en fila y con el nombre del
+proyecto abajo. Con seis Claude a la vez, saber que "algo" te está esperando no
+sirve de nada: lo que necesitás es saber **cuál**. El que te espera queda a todo
+color y el resto se apaga; clickeando uno vas a la terminal de esa sesión.
+
+Se achican solos según cuántos haya (uno solo se ve a tamaño completo) y cuando
+cerrás un Claude, su bichito se va: el hook borra el archivo de estado en
+`SessionEnd`.
+
 | Estado | Se ve | Lo dispara |
 |---|---|---|
 | **Cocinando** + cronómetro | saltea un panqueque | `UserPromptSubmit`, `Pre/PostToolUse` |
@@ -38,8 +47,10 @@ y un comando `C:/...` no se ejecutaría ahí.
   arrancan en el **desbordamiento** (la flechita ⌃ al lado del reloj): arrastralo
   fuera para dejarlo fijo.
 - **Arrastrar** con el botón izquierdo lo mueve, y ahí queda para la próxima.
-- **Un click** (sin arrastrar) trae al frente la terminal de esa sesión, aunque
-  esté minimizada. Con dos Claude abiertos te lleva al que te está esperando.
+- **Un click** (sin arrastrar) sobre un bichito trae al frente la terminal de
+  **esa** sesión, aunque esté minimizada. Si tus sesiones son pestañas de la
+  misma ventana de terminal, va a levantar esa ventana pero no puede cambiar de
+  pestaña: Windows no expone las pestañas como ventanas.
   El hook guarda la cadena de procesos hasta la terminal en el archivo de
   estado; el bichito se queda con el primer ancestro que tenga ventana visible,
   porque Claude Code y la shell no tienen ventana propia adentro de Windows
