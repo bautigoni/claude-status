@@ -315,6 +315,7 @@ class Mini:
         self.proyecto = sesion["proyecto"]
         self.sesion = sesion
 
+        self.cuantos = sesion.get("cuantos", 1)   # >1 cuando estan juntados
         self.visual = "dormido"
         self.raw = sesion["estado"]
         self.since = sesion["since"]
@@ -372,6 +373,7 @@ class Mini:
     def actualizar(self, sesion, ahora):
         self.sesion = sesion
         self.proyecto = sesion["proyecto"]
+        self.cuantos = sesion.get("cuantos", 1)
         if sesion["estado"] != self.raw:
             # se festeja cuando la sesion termina de verdad (hook Stop). Si se
             # cayo, su archivo envejece y el bichito desaparece sin festejo.
@@ -564,6 +566,14 @@ class Mini:
             arte = arte.resize((aw, ah), Image.NEAREST)
         img.alpha_composite(arte, ((self.ww - aw) // 2, 0))
 
+        if self.cuantos > 1:
+            # pegado al cuerpo y no al borde de la ventana: el sprite tiene
+            # bastante aire arriba (por donde vuela el panqueque) y ahi arriba
+            # el numerito parecia de otra cosa
+            chapa = app.insignia(self.cuantos, app.escala)
+            bx = (self.ww - aw) // 2 + int(aw * 0.74)
+            img.alpha_composite(chapa, (min(bx, self.ww - chapa.width), int(ah * 0.16)))
+
         espera = self.visual == "esperando"
         cx = self.ww / 2
         app.linea(img, self.proyecto, app.fuente(self.px_p), cx, ah,
@@ -577,7 +587,7 @@ class Mini:
         return premultiply(img)
 
     def clave(self):
-        return (self.ww, self.wh, self.visual, self.frame_i, self.proyecto,
+        return (self.ww, self.wh, self.visual, self.frame_i, self.proyecto, self.cuantos,
                 self.etiqueta(), self.app.texto_uso() if self.lleva_uso else "")
 
     def render(self, force=False):
@@ -649,6 +659,8 @@ class Bichito:
                 label=nombre.capitalize(),
                 command=lambda n=nombre: self.set_cfg("tamano", n))
         self.var_juntos = tk.BooleanVar(value=bool(self.cfg.get("mover_juntos")))
+        self.var_agrupado = tk.BooleanVar(value=bool(self.cfg.get("agrupado")))
+        self.menu_ses = tk.Menu(self.menu, tearoff=0)
         self.idx = {}
 
         def agregar(clave, *args, **kw):
@@ -657,10 +669,18 @@ class Bichito:
 
         agregar("terminal", label="Ir a esta terminal",
                 command=lambda: self.objetivo and self.objetivo.focus())
+        # con los bichitos juntados, la lista de sesiones vive en el submenu:
+        # es la unica manera de llegar a la terminal de cada una
+        self.menu.add_cascade(label="Ir a la terminal de", menu=self.menu_ses)
+        self.idx["sesiones"] = self.menu.index("end")
         agregar("panel", label="Abrir panel", command=self.open_panel)
         self.menu.add_cascade(label="Tamano", menu=self.menu_tam)
         agregar("encima", label="Siempre encima", command=self.toggle_top)
         self.menu.add_separator()
+        # todos adentro de un solo bichito, con el numerito de cuantos son
+        self.menu.add_checkbutton(label="Juntarlos en uno", variable=self.var_agrupado,
+                                  command=self.toggle_agrupado)
+        self.idx["agrupado"] = self.menu.index("end")
         # arrastrar uno lleva a todos, sin perder las distancias entre ellos
         self.menu.add_checkbutton(label="Mover todos juntos", variable=self.var_juntos,
                                   command=self.toggle_juntos)
@@ -675,15 +695,33 @@ class Bichito:
     def abrir_menu(self, mini, e):
         self.objetivo = mini
         self.var_juntos.set(bool(self.cfg.get("mover_juntos")))
-        self.menu.entryconfigure(self.idx["terminal"],
-                                 label=f"Ir a la terminal de {mini.proyecto}")
+        self.var_agrupado.set(bool(self.cfg.get("agrupado")))
+        # la lista de sesiones se rehace en cada apertura: cambian todo el tiempo
+        self.menu_ses.delete(0, "end")
+        for ses in self.sesiones:
+            self.menu_ses.add_command(
+                label=f"{ses['proyecto']}  ({TEXTO.get({'working': 'cocinando', 'waiting': 'esperando'}.get(ses['estado'], 'dormido'), 'dormido')})",
+                command=lambda s=ses: self.ir_a(s))
+        juntados = mini.cuantos > 1
+        self.menu.entryconfigure(
+            self.idx["terminal"],
+            label=f"Ir a la terminal de {mini.proyecto}",
+            state="disabled" if juntados else "normal")
+        self.menu.entryconfigure(self.idx["sesiones"],
+                                 state="normal" if len(self.sesiones) > 1 else "disabled")
         self.menu.entryconfigure(self.idx["encima"],
                                  label="Siempre encima  " + ("si" if self.topmost else "no"))
-        self.menu.entryconfigure(self.idx["ocultar"], label=f"Ocultar {mini.proyecto}")
+        self.menu.entryconfigure(self.idx["ocultar"],
+                                 label="Ocultar el bichito" if juntados
+                                 else f"Ocultar {mini.proyecto}",
+                                 state="disabled" if juntados else "normal")
+        self.menu.entryconfigure(self.idx["juntos"], state="disabled" if juntados else "normal")
         self.menu.entryconfigure(self.idx["mostrar"],
                                  state="normal" if self.ocultos else "disabled")
         self.menu.entryconfigure(self.idx["fila"],
                                  state="normal" if len(self.minis) > 1 else "disabled")
+        self.menu.entryconfigure(self.idx["agrupado"],
+                                 state="normal" if len(self.sesiones) > 1 else "disabled")
         try:
             self.menu.tk_popup(e.x_root, e.y_root)
         finally:
@@ -691,6 +729,25 @@ class Bichito:
 
     def toggle_juntos(self):
         self.set_cfg("mover_juntos", bool(self.var_juntos.get()))
+
+    def toggle_agrupado(self):
+        self.set_cfg("agrupado", bool(self.var_agrupado.get()))
+
+    def toggle_agrupado_bandeja(self):
+        nuevo = not bool(core.load_config().get("agrupado"))
+        self.var_agrupado.set(nuevo)
+        self.set_cfg("agrupado", nuevo)
+
+    def ir_a(self, sesion):
+        """Trae al frente la terminal de esa sesion desde el menu."""
+        for pid in sesion.get("focus") or []:
+            hwnd = ventana_principal(pid)
+            if not hwnd:
+                continue
+            if user32.IsIconic(hwnd):
+                user32.ShowWindow(hwnd, SW_RESTORE)
+            user32.SetForegroundWindow(hwnd)
+            return
 
     def acomodar_fila(self):
         """Los pone a todos en fila desde el ancla, por si quedaron desparramados."""
@@ -812,6 +869,36 @@ class Bichito:
         d.text((2, 2), txt, font=font, fill=fill)
         img.alpha_composite(capa, (max(0, int(cx - ancho / 2)), int(top)))
 
+    def insignia(self, n, esc):
+        """El numerito de cuantas sesiones hay adentro del bichito juntado."""
+        f = self.fuente(max(10, int(round(12 * esc))))
+        txt = f"x{n}"
+        d0 = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+        ancho = int(d0.textlength(txt, font=f))
+        w, h = ancho + 12, f.size + 8
+        capa = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        d = ImageDraw.Draw(capa)
+        d.rounded_rectangle((0, 0, w - 1, h - 1), radius=h // 2,
+                            fill=(217, 119, 87, 240), outline=BORDE)
+        d.text(((w - ancho) // 2, 3), txt, font=f, fill=(26, 18, 13, 255))
+        return capa
+
+    def sesion_juntada(self, sesiones):
+        """Una sola sesion que representa a todas.
+
+        Manda el que te espera; si no hay ninguno, el que hace mas rato que
+        cocina. Es lo que vas a querer mirar primero, y adonde te lleva el click.
+        """
+        esperando = [s for s in sesiones if s["estado"] == "waiting"]
+        trabajando = [s for s in sesiones if s["estado"] == "working"]
+        if esperando:
+            lider = esperando[0]
+        elif trabajando:
+            lider = min(trabajando, key=lambda s: s["since"] or 0)
+        else:
+            lider = sesiones[0]
+        return {**lider, "sid": "__juntos__", "cuantos": len(sesiones)}
+
     def texto_uso(self):
         cfg = self.cfg
         if not (cfg.get("plan_5h") or cfg.get("plan_weekly")):
@@ -862,6 +949,10 @@ class Bichito:
         self.usage = bichito_usage.read()
 
         sesiones = read_state()
+        self.sesiones = sesiones      # para el menu de "ir a la terminal de..."
+        juntados = bool(cfg.get("agrupado")) and len(sesiones) > 1
+        if juntados:
+            sesiones = [self.sesion_juntada(sesiones)]
         self.orden = [s["sid"] for s in sesiones]
         escala = self.calcular_escala(len(sesiones))
         cambio_escala = escala != self.escala
@@ -946,6 +1037,8 @@ class Tray:
                 pystray.MenuItem("Mostrar bichitos", later(self.app.toggle_pet),
                                  checked=lambda _: bool(core.load_config()["pet"])),
                 pystray.MenuItem("Mostrar los que escondiste", later(self.app.mostrar_todos)),
+                pystray.MenuItem("Juntarlos en uno", later(self.app.toggle_agrupado_bandeja),
+                                 checked=lambda _: bool(core.load_config().get("agrupado"))),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem("Salir", later(self.app.quit_all)),
             ),

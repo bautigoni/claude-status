@@ -101,6 +101,7 @@ const toggles = [
         <li><button role="menuitem" data-menu-item="panel">Abrir panel</button></li>
         <li><button role="menuitem" data-menu-item="encima">Siempre encima <span data-menu-encima>sí</span></button></li>
         <li class="menu__raya" role="separator"></li>
+        <li><button role="menuitem" data-menu-item="agrupado">Juntarlos en uno <span data-menu-agrupado>no</span></button></li>
         <li><button role="menuitem" data-menu-item="juntos">Mover todos juntos <span data-menu-juntos>no</span></button></li>
         <li><button role="menuitem" data-menu-item="ocultar">Ocultar este</button></li>
         <li><button role="menuitem" data-menu-item="mostrar">Mostrar todos</button></li>
@@ -130,7 +131,7 @@ const toggles = [
 
   <p class="esc__pie">
     Arrastralos por separado (o con Ctrl, a todos juntos) · clickeá uno para ir
-    a su terminal · botón derecho para el menú
+    a su terminal · botón derecho: juntarlos en uno, ocultar, tamaño
   </p>
 </div>
 
@@ -437,6 +438,22 @@ const toggles = [
   .bic[data-apagado="1"] .bic__texto {
     opacity: 0.5;
   }
+  /* el numerito de cuántas sesiones hay adentro cuando están juntados */
+  .bic[data-cuantos]::after {
+    content: "x" attr(data-cuantos);
+    position: absolute;
+    top: 16%;
+    right: 2%;
+    padding: 0.1rem 0.4rem;
+    border-radius: 999px;
+    background: var(--color-clay);
+    border: 1px solid #12100c;
+    font-family: var(--font-pixel);
+    font-weight: 600;
+    font-size: 0.75rem;
+    color: #1a120d;
+    pointer-events: none;
+  }
   .bic__texto {
     display: grid;
     justify-items: center;
@@ -665,7 +682,7 @@ const toggles = [
 
     const TEXTO = { cocinando: "Cocinando", esperando: "Te espera", termino: "Listo", dormido: "" };
     const cfg = { pet: true, timer: true, voz: false, centrar: true, encima: true,
-                  plan5: true, planSem: true, juntos: false };
+                  plan5: true, planSem: true, juntos: false, agrupado: false };
 
     const fmt = (s) => {
       s = Math.max(0, Math.floor(s));
@@ -770,6 +787,10 @@ const toggles = [
         if (nuevo === "dormido") this.desde = 0;
         this.pintarTexto();
         apagarLosQueNoEsperan();
+        // el juntado se entera acá y no solo en el loop: si dependiera del
+        // rAF, el cambio de estado tardaría un cuadro en verse (y en un test
+        // sin cuadros, nunca)
+        pintarJuntados();
       }
 
       /** Solo el que te espera se va al centro: si saltaran los dos, taparían
@@ -802,7 +823,47 @@ const toggles = [
     const bichos = sesiones.map((s) => new Bicho(s));
     bichos[0].primero = true;
 
+    /** Juntados: se ve uno solo, con el numerito, y manda el que te espera (o
+     *  el que hace más rato que cocina). Es el mismo criterio que la app. */
+    function lider() {
+      return bichos.find((b) => b.estado === "esperando")
+        || bichos.find((b) => b.estado === "cocinando")
+        || bichos[0];
+    }
+
+    function pintarJuntados() {
+      if (!cfg.agrupado) return;
+      const l = lider();
+      const uno = bichos[0];
+      uno.el.querySelector(".bic__proyecto").textContent = l.proyecto;
+      uno.elLabel.textContent = l.elLabel.textContent;
+      uno.el.dataset.espera = l.estado === "esperando" ? "1" : "0";
+      uno.el.dataset.apagado = "0";
+      if (uno.estado !== l.estado) {
+        uno.estado = l.estado;
+        uno.pintarSprite();
+      }
+    }
+
+    function aplicarAgrupado() {
+      const uno = bichos[0];
+      if (cfg.agrupado) {
+        uno.el.dataset.cuantos = bichos.length;
+        bichos.slice(1).forEach((b) => (b.el.hidden = true));
+        pintarJuntados();
+      } else {
+        delete uno.el.dataset.cuantos;
+        uno.el.querySelector(".bic__proyecto").textContent = uno.proyecto;
+        bichos.forEach((b) => {
+          b.aplicarVisibilidad();
+          b.pintarSprite();
+          b.pintarTexto();
+        });
+      }
+    }
+
     function apagarLosQueNoEsperan() {
+      if (cfg.agrupado) return;
       const hayEspera = bichos.some((b) => b.estado === "esperando");
       bichos.forEach((b) => {
         b.el.dataset.apagado = hayEspera && b.estado !== "esperando" ? "1" : "0";
@@ -991,6 +1052,7 @@ const toggles = [
     }
 
     function irALaTerminal(bicho) {
+      if (cfg.agrupado) bicho = lider();   // juntados: te lleva al que manda
       activar(bicho.ventId);
       bicho.vent.animate(
         [{ transform: "scale(1)" }, { transform: "scale(1.012)" }, { transform: "scale(1)" }],
@@ -1027,6 +1089,7 @@ const toggles = [
       menu.hidden = false;
       esc.querySelector("[data-menu-encima]").textContent = cfg.encima ? "sí" : "no";
       esc.querySelector("[data-menu-juntos]").textContent = cfg.juntos ? "sí" : "no";
+      esc.querySelector("[data-menu-agrupado]").textContent = cfg.agrupado ? "sí" : "no";
       esc.querySelector('[data-menu-item="ocultar"]').textContent = `Ocultar ${bicho.proyecto}`;
     }
     document.addEventListener("pointerdown", (e) => {
@@ -1041,6 +1104,10 @@ const toggles = [
       if (que === "panel") abrirPanel();
       if (que === "encima") aplicar("encima", !cfg.encima);
       if (que === "juntos") cfg.juntos = !cfg.juntos;
+      if (que === "agrupado") {
+        cfg.agrupado = !cfg.agrupado;
+        aplicarAgrupado();
+      }
       if (que === "ocultar" && objetivo) {
         objetivo.oculto = true;
         objetivo.aplicarVisibilidad();
@@ -1123,6 +1190,7 @@ const toggles = [
         b.deslizar();
         if (b.desde) b.pintarTexto();
       });
+      pintarJuntados();
       requestAnimationFrame(loop);
     }
     requestAnimationFrame(loop);

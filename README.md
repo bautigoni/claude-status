@@ -17,6 +17,10 @@ está esperando no sirve de nada: lo que necesitás es saber **cuál**.
   cuando quedaron desparramados.
 - **Solo el que te espera salta al centro.** Si saltaran todos te taparían la
   pantalla.
+- **O juntarlos en uno**: botón derecho → *Juntarlos en uno* deja una sola
+  ventanita con el numerito de cuántas sesiones hay adentro. Muestra la que te
+  espera —o la que hace más rato que cocina— y el click te lleva a esa terminal;
+  el submenú *Ir a la terminal de* las lista a todas.
 - **Podés esconder uno solo** (botón derecho → *Ocultar &lt;proyecto&gt;*) y
   traerlos de vuelta desde la bandeja o el mismo menú.
 - **Tamaño a gusto**: botón derecho → *Tamaño* (auto, grande, mediano, chico).
