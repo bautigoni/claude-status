@@ -105,7 +105,7 @@ sigue comportándose exactamente como antes.
 | Dónde | Qué se ve |
 |---|---|
 | **Panel** | dos tarjetas grandes, lado a lado cuando ambas están prendidas, full-width si solo una |
-| **Mascota** | una línea chiquita arriba del label principal (`5h 45%  sem 28%`), en color del bichito. Si el principal está vacío (dormido), el % ocupa todo el espacio |
+| **Mascota** | una línea en la franja de abajo de la fila, contra el borde derecho (`5h 45%  sem 28%`), en color del bichito. Va aparte porque es de la cuenta, no de una sesión |
 
 **De dónde sale el dato.** Igual que
 [Clawdmeter](https://github.com/HermannBjorgvin/Clawdmeter) (1.9k stars, el repo
