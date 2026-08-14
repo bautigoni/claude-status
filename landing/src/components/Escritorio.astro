@@ -1,20 +1,26 @@
 ---
 /**
- * El escritorio jugable: una réplica del bichito que hace todo lo que hace el
- * de verdad. Arrastralo, clickealo, abrile el menú, prendé y apagá cosas en el
- * panel, y mandale una tarea a la terminal falsa para verlo trabajar.
+ * El escritorio jugable: DOS sesiones de Claude, cada una con su terminal y su
+ * bichito. Arrastralos por separado, clickeá uno y su terminal pasa al frente,
+ * abriles el menú (ocultar solo ese, ir a esa terminal), prendé y apagá cosas
+ * en el panel, y mandale trabajo a cualquiera de las dos.
  *
- * Es la hero de la página a propósito: contar por escrito lo que hace una
- * mascota de escritorio es peor que dejar que la manotees.
+ * Es la hero de la página a propósito: contar por escrito qué hace una mascota
+ * de escritorio es peor que dejar que la manotees.
  */
 import meta from "../../public/sprites/meta.json";
 
-const ALTO = 190;
+const ALTO = 150;
 const escala = ALTO / meta.h;
 const ANCHO = Math.round(meta.w * escala);
 
+const sesiones = [
+  { id: "uno", proyecto: "Claude bichito", vent: "term", x: "58%", y: "6%" },
+  { id: "dos", proyecto: "smart-campus", vent: "term2", x: "58%", y: "50%" },
+];
+
 const toggles = [
-  { id: "pet", label: "Bichito flotante" },
+  { id: "pet", label: "Bichitos flotantes" },
   { id: "timer", label: "Cronómetro" },
   { id: "voz", label: "Voz" },
   { id: "centrar", label: "Saltar al centro" },
@@ -29,16 +35,22 @@ const toggles = [
     <div class="esc__pantalla" data-pantalla>
       <div class="esc__fondo" aria-hidden="true"></div>
 
-      <!-- ---------------------------------------------------- terminal -->
       <article class="vent vent--term esc-activa" data-vent="term">
         <header class="vent__barra" data-mover="term">
           <span class="vent__semaforo" aria-hidden="true"></span>
-          <span class="vent__tit mini">Windows Terminal — claude</span>
+          <span class="vent__tit mini">claude — Claude bichito</span>
         </header>
-        <div class="vent__cuerpo" data-consola role="log" aria-live="polite"></div>
+        <div class="vent__cuerpo" data-consola="term" role="log" aria-live="polite"></div>
       </article>
 
-      <!-- ------------------------------------------------------- panel -->
+      <article class="vent vent--term2" data-vent="term2">
+        <header class="vent__barra" data-mover="term2">
+          <span class="vent__semaforo" aria-hidden="true"></span>
+          <span class="vent__tit mini">claude — smart-campus</span>
+        </header>
+        <div class="vent__cuerpo" data-consola="term2" role="log"></div>
+      </article>
+
       <article class="vent vent--panel" data-vent="panel" hidden>
         <header class="vent__barra" data-mover="panel">
           <span class="vent__semaforo" aria-hidden="true"></span>
@@ -62,39 +74,37 @@ const toggles = [
         </div>
       </article>
 
-      <!-- ----------------------------------------------------- bichito -->
-      <div
-        class="bic"
-        data-bic
-        role="button"
-        tabindex="0"
-        aria-label="El bichito. Clickealo para ir a la terminal, arrastralo para moverlo, botón derecho para el menú."
-      >
-        <div
-          class="bic__sprite sprite pixel"
-          data-sprite
-          style={`width:${ANCHO}px;height:${ALTO}px`}
-        >
-        </div>
-        <div class="bic__texto">
-          <span class="bic__label hud hud-sombra" data-label></span>
-          <span class="bic__uso hud hud-sombra" data-uso></span>
-        </div>
-      </div>
+      {
+        sesiones.map((s) => (
+          <div
+            class="bic"
+            data-bic={s.id}
+            style={`--bx:${s.x};--by:${s.y}`}
+            role="button"
+            tabindex="0"
+            aria-label={`El bichito de ${s.proyecto}. Clickealo para ir a su terminal, arrastralo para moverlo, botón derecho para el menú.`}
+          >
+            <div class="bic__sprite sprite pixel" data-sprite style={`width:${ANCHO}px;height:${ALTO}px`} />
+            <div class="bic__texto">
+              <span class="bic__proyecto hud hud-sombra">{s.proyecto}</span>
+              <span class="bic__label hud hud-sombra" data-label />
+              <span class="bic__uso hud hud-sombra" data-uso />
+            </div>
+          </div>
+        ))
+      }
 
-      <!-- globo de la voz: lo que diría en voz alta -->
       <div class="globo mini" data-globo hidden></div>
 
-      <!-- menú de botón derecho -->
       <ul class="menu" data-menu hidden role="menu">
+        <li><button role="menuitem" data-menu-item="terminal">Ir a esta terminal</button></li>
         <li><button role="menuitem" data-menu-item="panel">Abrir panel</button></li>
         <li><button role="menuitem" data-menu-item="encima">Siempre encima <span data-menu-encima>sí</span></button></li>
         <li class="menu__raya" role="separator"></li>
-        <li><button role="menuitem" data-menu-item="ocultar">Ocultar bichito</button></li>
-        <li><button role="menuitem" data-menu-item="salir">Salir del todo</button></li>
+        <li><button role="menuitem" data-menu-item="ocultar">Ocultar este</button></li>
+        <li><button role="menuitem" data-menu-item="mostrar">Mostrar todos</button></li>
       </ul>
 
-      <!-- barra de tareas, con la bandeja -->
       <footer class="barra">
         <button class="barra__bandeja" data-bandeja>
           <span class="barra__icono pixel" aria-hidden="true"></span>
@@ -105,24 +115,21 @@ const toggles = [
     </div>
   </div>
 
-  <!-- ------------------------------------------------------------ mando -->
   <div class="mando">
     <div class="mando__grupo">
-      <span class="mando__titulo mini">Mandale trabajo</span>
+      <span class="mando__titulo mini">Claude bichito</span>
       <button class="btn btn--clay" data-accion="turno">Pedile una tarea</button>
-      <button class="btn" data-accion="pregunta">Que te haga una pregunta</button>
+      <button class="btn" data-accion="pregunta">Que te pregunte</button>
     </div>
     <div class="mando__grupo">
-      <span class="mando__titulo mini">O forzá un estado</span>
-      <button class="btn btn--chico" data-estado="cocinando">Cocinando</button>
-      <button class="btn btn--chico" data-estado="esperando">Te espera</button>
-      <button class="btn btn--chico" data-estado="termino">Listo</button>
-      <button class="btn btn--chico" data-estado="dormido">Dormido</button>
+      <span class="mando__titulo mini">smart-campus</span>
+      <button class="btn" data-accion="otro">Que te pregunte el otro</button>
     </div>
   </div>
 
   <p class="esc__pie">
-    Arrastralo · clickealo para ir a la terminal · botón derecho para el menú
+    Arrastralos por separado · clickeá uno para ir a su terminal · botón derecho
+    para el menú
   </p>
 </div>
 
@@ -151,7 +158,7 @@ const toggles = [
     overflow: hidden;
     border-radius: 0.75rem;
     background: #0f0d0b;
-    height: clamp(23rem, 38vw, 26rem);
+    height: clamp(27rem, 46vw, 33rem);
     user-select: none;
   }
 
@@ -178,9 +185,9 @@ const toggles = [
   /* --------------------------------------------------------- ventanas -- */
   .vent {
     position: absolute;
-    left: var(--x, 2rem);
-    top: var(--y, 2.5rem);
-    width: var(--w, min(34rem, 58%));
+    left: var(--x, 1.5rem);
+    top: var(--y, 1.5rem);
+    width: var(--w, min(29rem, 52%));
     border: 1px solid var(--color-slate-line);
     border-radius: 0.6rem;
     background: color-mix(in srgb, var(--color-slate) 92%, transparent);
@@ -188,7 +195,7 @@ const toggles = [
     box-shadow: 0 24px 48px -24px rgb(0 0 0 / 0.85);
     z-index: 10;
     transition: box-shadow 0.2s, border-color 0.2s, opacity 0.2s;
-    opacity: 0.82;
+    opacity: 0.72;
   }
   .vent.esc-activa {
     z-index: 20;
@@ -197,6 +204,11 @@ const toggles = [
     box-shadow:
       0 0 0 1px color-mix(in srgb, var(--color-clay) 25%, transparent),
       0 28px 56px -20px rgb(0 0 0 / 0.9);
+  }
+  .vent--term2 {
+    --x: 2.5rem;
+    --y: 15.5rem;
+    --w: min(24rem, 46%);
   }
 
   .vent__barra {
@@ -221,12 +233,11 @@ const toggles = [
     box-shadow: 0.75rem 0 0 #3b4350, 1.5rem 0 0 #3b4350;
     margin-right: 1.5rem;
   }
-  .esc-activa .vent__semaforo {
-    background: var(--color-clay);
-  }
   .vent__tit {
     color: var(--color-ash);
-    font-size: 0.625rem;
+  }
+  .esc-activa .vent__semaforo {
+    background: var(--color-clay);
   }
   .esc-activa .vent__tit {
     color: var(--color-cream);
@@ -244,15 +255,18 @@ const toggles = [
   }
 
   .vent__cuerpo {
-    padding: 0.85rem 0.95rem 1rem;
+    padding: 0.8rem 0.9rem 0.9rem;
     font-family: var(--font-mono);
     font-size: 0.75rem;
     line-height: 1.7;
     color: #b9c2cd;
-    height: 14rem;
+    height: 11rem;
     overflow: hidden auto;
     scrollbar-width: thin;
     scrollbar-color: var(--color-slate-line) transparent;
+  }
+  .vent--term2 .vent__cuerpo {
+    height: 7rem;
   }
   .vent__cuerpo--panel {
     height: auto;
@@ -313,20 +327,12 @@ const toggles = [
     border-color: var(--color-clay);
     color: var(--color-clay-soft);
   }
-  .cursor::after {
-    content: "▌";
-    color: var(--color-clay);
-    animation: parpadeo 1.1s steps(2) infinite;
-  }
-  @keyframes parpadeo {
-    50% {
-      opacity: 0;
-    }
-  }
 
   /* ----------------------------------------------------------- panel -- */
   .vent--panel {
-    --w: min(17rem, 54%);
+    --w: min(17rem, 50%);
+    --x: 54%;
+    --y: 3rem;
   }
   .panel__lista {
     display: grid;
@@ -384,12 +390,12 @@ const toggles = [
     outline-offset: 2px;
   }
 
-  /* --------------------------------------------------------- bichito -- */
+  /* -------------------------------------------------------- bichitos -- */
   .bic {
     touch-action: none;
     position: absolute;
-    left: var(--bx, 60%);
-    top: var(--by, 12%);
+    left: var(--bx, 58%);
+    top: var(--by, 8%);
     z-index: 30;
     display: grid;
     justify-items: center;
@@ -398,6 +404,12 @@ const toggles = [
   }
   .bic[data-atras="1"] {
     z-index: 5;
+  }
+  .bic:active {
+    cursor: grabbing;
+  }
+  .bic[hidden] {
+    display: none;
   }
   /* mientras te espera, un resplandor que respira: es lo que en la app hace el
      salto al centro, llamarte la atención sin taparte nada */
@@ -419,11 +431,10 @@ const toggles = [
       opacity: 0.4;
     }
   }
-  .bic:active {
-    cursor: grabbing;
-  }
-  .bic[hidden] {
-    display: none;
+  /* si uno te espera, los demás pasan a segundo plano */
+  .bic[data-apagado="1"] .bic__sprite,
+  .bic[data-apagado="1"] .bic__texto {
+    opacity: 0.5;
   }
   .bic__texto {
     display: grid;
@@ -432,13 +443,20 @@ const toggles = [
     margin-top: -2px;
     pointer-events: none;
   }
-  .bic__label {
+  .bic__proyecto {
+    font-size: 0.8125rem;
     color: var(--color-cream);
-    font-size: 0.875rem;
+  }
+  .bic[data-espera="1"] .bic__proyecto {
+    color: var(--color-clay-soft);
+  }
+  .bic__label {
+    font-size: 0.75rem;
+    color: #cabaac;
   }
   .bic__uso {
-    color: var(--color-tan);
     font-size: 0.75rem;
+    color: var(--color-tan);
     letter-spacing: 0.04em;
   }
   .bic:focus-visible {
@@ -467,13 +485,12 @@ const toggles = [
   .globo {
     position: absolute;
     z-index: 40;
-    max-width: 15rem;
+    max-width: 16rem;
     padding: 0.45rem 0.65rem;
     border: 1px solid var(--color-ink-line);
     border-radius: 0.5rem;
     background: #241d17f2;
     color: var(--color-cream);
-    font-size: 0.625rem;
     line-height: 1.5;
     pointer-events: none;
   }
@@ -550,14 +567,13 @@ const toggles = [
   }
   .barra__reloj {
     color: var(--color-ash);
-    font-size: 0.625rem;
   }
 
   /* ----------------------------------------------------------- mando -- */
   .mando {
     display: flex;
     flex-wrap: wrap;
-    gap: 1.25rem 2rem;
+    gap: 1rem 2rem;
     margin-top: 1.1rem;
   }
   .mando__grupo {
@@ -568,7 +584,6 @@ const toggles = [
   }
   .mando__titulo {
     color: var(--color-ash);
-    font-size: 0.625rem;
     margin-right: 0.15rem;
   }
 
@@ -599,14 +614,6 @@ const toggles = [
     filter: brightness(1.08);
     color: #1a120d;
   }
-  .btn--chico {
-    padding: 0.3rem 0.65rem;
-    font-size: 0.8125rem;
-  }
-  .btn[aria-pressed="true"] {
-    border-color: var(--color-clay);
-    color: var(--color-clay);
-  }
 
   .esc__pie {
     margin-top: 0.85rem;
@@ -618,13 +625,20 @@ const toggles = [
 
   @media (max-width: 640px) {
     .vent--term {
-      --w: 88%;
+      --w: 84%;
+    }
+    .vent--term2 {
+      --w: 70%;
+      --y: 13rem;
     }
     .vent__cuerpo {
-      height: 11rem;
+      height: 8.5rem;
+    }
+    .vent--term2 .vent__cuerpo {
+      height: 5.5rem;
     }
     .vent--panel {
-      --w: 78%;
+      --w: 74%;
     }
   }
 
@@ -635,143 +649,181 @@ const toggles = [
   }
 </style>
 
-<script define:vars={{ meta, ALTO, ANCHO }}>
+<script define:vars={{ meta, ALTO, ANCHO, sesiones }}>
   (() => {
     const esc = document.querySelector("[data-esc]");
     if (!esc) return;
 
     const pantalla = esc.querySelector("[data-pantalla]");
-    const bic = esc.querySelector("[data-bic]");
-    const sprite = esc.querySelector("[data-sprite]");
-    const elLabel = esc.querySelector("[data-label]");
-    const elUso = esc.querySelector("[data-uso]");
-    const consola = esc.querySelector("[data-consola]");
     const menu = esc.querySelector("[data-menu]");
     const globo = esc.querySelector("[data-globo]");
     const panel = esc.querySelector('[data-vent="panel"]');
-    const term = esc.querySelector('[data-vent="term"]');
     const reloj = esc.querySelector("[data-reloj]");
     const bandejaTxt = esc.querySelector("[data-bandeja-txt]");
-
     const quieto = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    // texto de cada estado, igual que en la app
     const TEXTO = { cocinando: "Cocinando", esperando: "Te espera", termino: "Listo", dormido: "" };
-
     const cfg = { pet: true, timer: true, voz: false, centrar: true, encima: true, plan5: true, planSem: true };
 
-    const S = {
-      estado: "dormido",
-      desde: 0,
-      congelado: "",
-      pinned: false,      // lo arrastraste durante esta espera
-      home: { x: 0, y: 0 },
-      pos: { x: 0, y: 0 },
-      corriendo: false,   // hay un turno en curso
-      paso: 0,
-      timers: [],
-    };
-
-    // ------------------------------------------------------------ ayudas
     const fmt = (s) => {
       s = Math.max(0, Math.floor(s));
       return s >= 60 ? `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s` : `${s}s`;
     };
-    const luego = (fn, ms) => S.timers.push(setTimeout(fn, ms));
-    const limpiarTimers = () => {
-      S.timers.forEach(clearTimeout);
-      S.timers = [];
+    let timers = [];
+    const luego = (fn, ms) => timers.push(setTimeout(fn, ms));
+    const limpiar = () => {
+      timers.forEach(clearTimeout);
+      timers = [];
     };
 
-    function medidas() {
-      const r = pantalla.getBoundingClientRect();
-      return {
-        w: r.width,
-        h: r.height,
-        alto: bic.offsetHeight || ALTO + 34,
-        ancho: bic.offsetWidth || ANCHO,
-      };
-    }
-
-    function centro() {
-      const m = medidas();
-      return { x: (m.w - m.ancho) / 2, y: (m.h - m.alto) / 2 - 10 };
-    }
-
-    function poner(x, y) {
-      const m = medidas();
-      S.pos.x = Math.min(Math.max(x, 4), m.w - m.ancho - 4);
-      S.pos.y = Math.min(Math.max(y, 4), m.h - m.alto - 26);
-      bic.style.setProperty("--bx", `${S.pos.x}px`);
-      bic.style.setProperty("--by", `${S.pos.y}px`);
-    }
-
-    // ------------------------------------------------------- el sprite
-    function pintarSprite() {
-      const nombre = S.estado === "dormido" ? "dormido" : S.estado;
-      const info = meta[nombre];
-      const tira = ANCHO * info.frames;
-      sprite.style.backgroundImage = `url(/sprites/${nombre}.png)`;
-      sprite.style.setProperty("--strip", `${tira}px`);
-      sprite.style.setProperty("--frames", info.frames);
-      sprite.style.setProperty("--dur", `${(info.frames / info.fps).toFixed(2)}s`);
-      sprite.classList.toggle("sprite--once", nombre === "termino");
-      // reiniciar la animación al cambiar de estado
-      sprite.style.animation = "none";
-      void sprite.offsetWidth;
-      sprite.style.animation = "";
-    }
-
-    function pintarTexto() {
-      let label = "";
-      if (S.estado === "termino") label = cfg.timer && S.congelado ? `Listo  ${S.congelado}` : "Listo";
-      else {
-        const base = TEXTO[S.estado] || "";
-        label = base && S.desde && cfg.timer ? `${base}  ${fmt((Date.now() - S.desde) / 1000)}` : base;
+    // -------------------------------------------------------- un bichito
+    class Bicho {
+      constructor(def) {
+        Object.assign(this, def);
+        this.el = esc.querySelector(`[data-bic="${def.id}"]`);
+        this.sprite = this.el.querySelector("[data-sprite]");
+        this.elLabel = this.el.querySelector("[data-label]");
+        this.elUso = this.el.querySelector("[data-uso]");
+        this.ventId = def.vent;   // el id; abajo se pisa con el elemento
+        this.vent = esc.querySelector(`[data-vent="${def.vent}"]`);
+        this.consola = esc.querySelector(`[data-consola="${def.vent}"]`);
+        this.estado = "dormido";
+        this.desde = 0;
+        this.congelado = "";
+        this.pinned = false;
+        this.oculto = false;
+        this.primero = false;
+        this.corriendo = false;
+        this.pos = { x: 0, y: 0 };
+        this.home = { x: 0, y: 0 };
+        this.pintarSprite();
       }
-      elLabel.textContent = label;
-      const partes = [];
-      if (cfg.plan5) partes.push("5h 24%");
-      if (cfg.planSem) partes.push("sem 78%");
-      elUso.textContent = partes.join("  ");
-    }
 
-    function estado(nuevo, opciones = {}) {
-      if (nuevo !== S.estado) {
-        if (nuevo !== "esperando") S.pinned = false;
-        S.estado = nuevo;
-        bic.dataset.espera = nuevo === "esperando" ? "1" : "0";
-        pintarSprite();
+      medidas() {
+        const p = pantalla.getBoundingClientRect();
+        return {
+          w: p.width,
+          h: p.height,
+          ancho: this.el.offsetWidth || ANCHO,
+          alto: this.el.offsetHeight || ALTO + 50,
+        };
       }
-      if (nuevo === "cocinando" && !opciones.mantener) S.desde = Date.now();
-      if (nuevo === "dormido") S.desde = 0;
-      pintarTexto();
+
+      poner(x, y) {
+        const m = this.medidas();
+        this.pos = {
+          x: Math.min(Math.max(x, 4), m.w - m.ancho - 4),
+          y: Math.min(Math.max(y, 4), m.h - m.alto - 26),
+        };
+        this.el.style.setProperty("--bx", `${this.pos.x}px`);
+        this.el.style.setProperty("--by", `${this.pos.y}px`);
+      }
+
+      /** Pasa de la posición en % del HTML a píxeles, para poder arrastrarlo. */
+      acomodar() {
+        const r = this.el.getBoundingClientRect();
+        const p = pantalla.getBoundingClientRect();
+        this.poner(r.left - p.left, r.top - p.top);
+        this.home = { ...this.pos };
+      }
+
+      pintarSprite() {
+        const info = meta[this.estado];
+        this.sprite.style.backgroundImage = `url(/sprites/${this.estado}.png)`;
+        this.sprite.style.setProperty("--strip", `${ANCHO * info.frames}px`);
+        this.sprite.style.setProperty("--frames", info.frames);
+        this.sprite.style.setProperty("--dur", `${(info.frames / info.fps).toFixed(2)}s`);
+        this.sprite.classList.toggle("sprite--once", this.estado === "termino");
+        this.sprite.style.animation = "none";
+        void this.sprite.offsetWidth;
+        this.sprite.style.animation = "";
+      }
+
+      pintarTexto() {
+        let label = "";
+        if (this.estado === "termino") {
+          label = cfg.timer && this.congelado ? `Listo  ${this.congelado}` : "Listo";
+        } else {
+          const base = TEXTO[this.estado] || "";
+          label = base && this.desde && cfg.timer ? `${base}  ${fmt((Date.now() - this.desde) / 1000)}` : base;
+        }
+        this.elLabel.textContent = label;
+        // el % del plan es de la cuenta, no de una sesión: lo lleva el primero
+        const partes = [];
+        if (this.primero) {
+          if (cfg.plan5) partes.push("5h 24%");
+          if (cfg.planSem) partes.push("sem 78%");
+        }
+        this.elUso.textContent = partes.join("  ");
+      }
+
+      set(nuevo, opciones = {}) {
+        if (nuevo !== this.estado) {
+          if (nuevo !== "esperando") this.pinned = false;
+          this.estado = nuevo;
+          this.el.dataset.espera = nuevo === "esperando" ? "1" : "0";
+          this.pintarSprite();
+        }
+        if (nuevo === "cocinando" && !opciones.mantener) this.desde = Date.now();
+        if (nuevo === "dormido") this.desde = 0;
+        this.pintarTexto();
+        apagarLosQueNoEsperan();
+      }
+
+      /** Solo el que te espera se va al centro: si saltaran los dos, taparían
+       *  la pantalla entera (en la app pasa lo mismo con seis). */
+      deslizar() {
+        let destino = this.home;
+        if (this.estado === "esperando" && cfg.centrar && !this.pinned) {
+          const m = this.medidas();
+          destino = { x: (m.w - m.ancho) / 2, y: (m.h - m.alto) / 2 - 10 };
+        }
+        const dx = destino.x - this.pos.x;
+        const dy = destino.y - this.pos.y;
+        if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) this.poner(destino.x, destino.y);
+        else this.poner(this.pos.x + dx * (quieto ? 1 : 0.18), this.pos.y + dy * (quieto ? 1 : 0.18));
+      }
+
+      linea(clase, html) {
+        const p = document.createElement("p");
+        p.className = `lin lin--${clase}`;
+        p.innerHTML = html;
+        this.consola.appendChild(p);
+        this.consola.scrollTop = this.consola.scrollHeight;
+      }
+
+      aplicarVisibilidad() {
+        this.el.hidden = this.oculto || !cfg.pet;
+      }
     }
 
-    // ---------------------------------------------------------- deslizar
-    function deslizar() {
-      const destino = S.estado === "esperando" && cfg.centrar && !S.pinned ? centro() : S.home;
-      const dx = destino.x - S.pos.x;
-      const dy = destino.y - S.pos.y;
-      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) poner(destino.x, destino.y);
-      else poner(S.pos.x + dx * (quieto ? 1 : 0.18), S.pos.y + dy * (quieto ? 1 : 0.18));
-      if (S.estado !== "dormido" || S.desde) pintarTexto();
-      if (!globo.hidden) ponerGlobo();
-      requestAnimationFrame(deslizar);
+    const bichos = sesiones.map((s) => new Bicho(s));
+    bichos[0].primero = true;
+
+    function apagarLosQueNoEsperan() {
+      const hayEspera = bichos.some((b) => b.estado === "esperando");
+      bichos.forEach((b) => {
+        b.el.dataset.apagado = hayEspera && b.estado !== "esperando" ? "1" : "0";
+      });
     }
 
-    // -------------------------------------------------------------- voz
-    function ponerGlobo() {
-      const m = medidas();
-      globo.style.left = `${Math.max(Math.min(S.pos.x - 20, m.w - globo.offsetWidth - 8), 8)}px`;
-      globo.style.top = `${Math.max(S.pos.y - globo.offsetHeight - 8, 6)}px`;
+    function activar(cual) {
+      esc.querySelectorAll("[data-vent]").forEach((v) => {
+        v.classList.toggle("esc-activa", v.dataset.vent === cual);
+      });
     }
 
-    function decir(texto) {
+    function globito(bicho, texto, ms) {
       globo.textContent = texto;
       globo.hidden = false;
-      ponerGlobo();
-      luego(() => (globo.hidden = true), 3200);
+      const m = bicho.medidas();
+      globo.style.left = `${Math.max(Math.min(bicho.pos.x - 20, m.w - 270), 8)}px`;
+      globo.style.top = `${Math.max(bicho.pos.y - 34, 6)}px`;
+      luego(() => (globo.hidden = true), ms);
+    }
+
+    function decir(bicho, texto) {
+      globito(bicho, texto, 3400);
       if (cfg.voz && "speechSynthesis" in window) {
         try {
           const v = new SpeechSynthesisUtterance(texto);
@@ -785,22 +837,7 @@ const toggles = [
       }
     }
 
-    // ---------------------------------------------------------- consola
-    function linea(clase, html) {
-      const p = document.createElement("p");
-      p.className = `lin lin--${clase}`;
-      p.innerHTML = html;
-      consola.appendChild(p);
-      consola.scrollTop = consola.scrollHeight;
-      return p;
-    }
-
-    function activar(cual) {
-      term.classList.toggle("esc-activa", cual === "term");
-      panel.classList.toggle("esc-activa", cual === "panel");
-    }
-
-    // -------------------------------------------------------- el guion
+    // --------------------------------------------------------- el guion
     const TAREA = [
       { c: "tool", t: "<b>Read</b>  bichito_pet.py" },
       { c: "tool", t: "<b>Grep</b>  _draw_text" },
@@ -808,36 +845,36 @@ const toggles = [
       { c: "tool", t: "<b>Bash</b>  python build.py" },
     ];
 
-    function correrTurno(conPregunta) {
-      if (S.corriendo) return;
-      limpiarTimers();
-      S.corriendo = true;
-      consola.innerHTML = "";
-      linea("user", conPregunta ? "arreglá el layout del % del plan" : "compilá y dejámelo instalado");
-      linea("hook", "UserPromptSubmit → bichito-hook.exe working");
-      estado("cocinando");
-      activar("term");
+    function correrTurno(bicho, conPregunta) {
+      if (bicho.corriendo) return;
+      limpiar();
+      bicho.corriendo = true;
+      bicho.consola.innerHTML = "";
+      bicho.linea("user", conPregunta ? "arreglá el layout del % del plan" : "compilá y dejámelo instalado");
+      bicho.linea("hook", "UserPromptSubmit → bichito-hook.exe working");
+      bicho.set("cocinando");
+      activar(bicho.ventId);
 
       let t = 500;
       TAREA.forEach((l, i) => {
         luego(() => {
-          linea(l.c, l.t);
-          linea("hook", "PreToolUse → working");
+          bicho.linea(l.c, l.t);
+          bicho.linea("hook", "PreToolUse → working");
         }, t);
         t += 800;
         if (conPregunta && i === 1) {
-          luego(() => preguntar(), t);
+          luego(() => preguntar(bicho), t);
           t += 400;
         }
       });
-      if (!conPregunta) luego(terminar, t + 300);
+      if (!conPregunta) luego(() => terminar(bicho), t + 300);
     }
 
-    function preguntar() {
+    function preguntar(bicho) {
       // en la app esto lo dispara el PreToolUse de AskUserQuestion
-      limpiarTimers();
-      linea("hook", "PreToolUse AskUserQuestion → waiting");
-      linea("preg", "¿La franja del uso va abajo del label, o arriba?");
+      limpiar();
+      bicho.linea("hook", "PreToolUse AskUserQuestion → waiting");
+      bicho.linea("preg", "¿La franja del uso va abajo del label, o arriba?");
       const caja = document.createElement("div");
       caja.className = "opciones";
       ["Abajo", "Arriba"].forEach((op) => {
@@ -846,41 +883,41 @@ const toggles = [
         b.textContent = op;
         b.addEventListener("click", () => {
           caja.remove();
-          linea("user", op.toLowerCase());
-          estado("cocinando", { mantener: true });
-          linea("hook", "UserPromptSubmit → working");
-          luego(() => linea("tool", "<b>Edit</b>  bichito_pet.py  +8 −3"), 600);
-          luego(terminar, 1600);
+          bicho.linea("user", op.toLowerCase());
+          bicho.set("cocinando", { mantener: true });
+          bicho.linea("hook", "UserPromptSubmit → working");
+          luego(() => bicho.linea("tool", "<b>Edit</b>  bichito_pet.py  +8 −3"), 600);
+          luego(() => terminar(bicho), 1600);
         });
         caja.appendChild(b);
       });
-      consola.appendChild(caja);
-      consola.scrollTop = consola.scrollHeight;
-      estado("esperando", { mantener: true });
-      decir("El proyecto bichito está esperando tu respuesta");
+      bicho.consola.appendChild(caja);
+      bicho.consola.scrollTop = bicho.consola.scrollHeight;
+      bicho.set("esperando", { mantener: true });
+      decir(bicho, `El proyecto ${bicho.proyecto} está esperando tu respuesta`);
     }
 
-    function terminar() {
-      S.congelado = fmt((Date.now() - S.desde) / 1000);
-      linea("ok", "listo, el uso quedó en su propia franja");
-      linea("hook", "Stop → bichito-hook.exe idle");
-      estado("termino");
-      decir("El proyecto bichito terminó");
-      chispas();
+    function terminar(bicho) {
+      bicho.congelado = fmt((Date.now() - bicho.desde) / 1000);
+      bicho.linea("ok", "listo");
+      bicho.linea("hook", "Stop → bichito-hook.exe idle");
+      bicho.set("termino");
+      decir(bicho, `El proyecto ${bicho.proyecto} terminó`);
+      chispas(bicho);
       luego(() => {
-        estado("dormido");
-        S.corriendo = false;
+        bicho.set("dormido");
+        bicho.corriendo = false;
       }, 2400);
     }
 
-    function chispas() {
+    function chispas(bicho) {
       if (quieto) return;
-      const m = medidas();
+      const m = bicho.medidas();
       for (let i = 0; i < 14; i++) {
         const c = document.createElement("i");
         c.className = "chispa";
-        c.style.left = `${S.pos.x + m.ancho / 2}px`;
-        c.style.top = `${S.pos.y + 40}px`;
+        c.style.left = `${bicho.pos.x + m.ancho / 2}px`;
+        c.style.top = `${bicho.pos.y + 40}px`;
         c.style.setProperty("--dx", `${(Math.random() - 0.5) * 150}px`);
         c.style.setProperty("--dy", `${-Math.random() * 110 - 20}px`);
         c.style.animationDelay = `${Math.random() * 0.25}s`;
@@ -890,7 +927,7 @@ const toggles = [
     }
 
     // ------------------------------------------------------- arrastrar
-    function arrastrable(el, alSoltarClick) {
+    function arrastrable(el, alClick, bicho) {
       let id = null;
       let ini = null;
       let movido = false;
@@ -904,7 +941,7 @@ const toggles = [
         try {
           el.setPointerCapture(id);
         } catch {
-          /* sin captura el arrastre igual anda mientras el puntero no se vaya */
+          /* sin captura anda igual mientras el puntero no se escape */
         }
       });
       el.addEventListener("pointermove", (e) => {
@@ -916,10 +953,10 @@ const toggles = [
         }
         const x = e.clientX - ini.px - ini.dx;
         const y = e.clientY - ini.py - ini.dy;
-        if (el === bic) {
-          poner(x, y);
-          S.home = { ...S.pos };
-          S.pinned = true;   // arrastrar gana: el centro deja de tironear
+        if (bicho) {
+          bicho.poner(x, y);
+          bicho.home = { ...bicho.pos };
+          bicho.pinned = true;   // arrastrar gana: el centro deja de tironear
         } else {
           el.style.setProperty("--x", `${x}px`);
           el.style.setProperty("--y", `${y}px`);
@@ -931,46 +968,50 @@ const toggles = [
           el.releasePointerCapture(id);
         } catch {}
         id = null;
-        if (!movido && alSoltarClick) alSoltarClick();
+        if (!movido && alClick) alClick();
       };
       el.addEventListener("pointerup", soltar);
       el.addEventListener("pointercancel", soltar);
     }
 
-    // click limpio en el bichito: te lleva a la terminal
-    function irALaTerminal() {
-      activar("term");
-      term.animate(
+    function irALaTerminal(bicho) {
+      activar(bicho.ventId);
+      bicho.vent.animate(
         [{ transform: "scale(1)" }, { transform: "scale(1.012)" }, { transform: "scale(1)" }],
         { duration: 260, easing: "ease-out" },
       );
-      decir("te llevo a la terminal");
-      globo.textContent = "click → la terminal de esa sesión pasa al frente";
+      globito(bicho, `click → al frente la terminal de ${bicho.proyecto}`, 2600);
     }
 
-    arrastrable(bic, irALaTerminal);
+    bichos.forEach((b) => {
+      arrastrable(b.el, () => irALaTerminal(b), b);
+      b.el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          irALaTerminal(b);
+        }
+      });
+      b.el.addEventListener("contextmenu", (e) => abrirMenu(e, b));
+    });
+
     esc.querySelectorAll("[data-mover]").forEach((barra) => {
       const vent = barra.closest(".vent");
-      arrastrable(barra, () => activar(vent.dataset.vent));
+      arrastrable(barra, () => activar(vent.dataset.vent), null);
       vent.addEventListener("pointerdown", () => activar(vent.dataset.vent));
     });
 
-    bic.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        irALaTerminal();
-      }
-    });
-
     // ------------------------------------------------------------ menú
-    bic.addEventListener("contextmenu", (e) => {
+    let objetivo = null;
+    function abrirMenu(e, bicho) {
       e.preventDefault();
+      objetivo = bicho;
       const p = pantalla.getBoundingClientRect();
       menu.style.left = `${Math.min(e.clientX - p.left, p.width - 190)}px`;
-      menu.style.top = `${Math.min(e.clientY - p.top, p.height - 150)}px`;
+      menu.style.top = `${Math.min(e.clientY - p.top, p.height - 180)}px`;
       menu.hidden = false;
       esc.querySelector("[data-menu-encima]").textContent = cfg.encima ? "sí" : "no";
-    });
+      esc.querySelector('[data-menu-item="ocultar"]').textContent = `Ocultar ${bicho.proyecto}`;
+    }
     document.addEventListener("pointerdown", (e) => {
       if (!menu.hidden && !menu.contains(e.target)) menu.hidden = true;
     });
@@ -979,20 +1020,27 @@ const toggles = [
       if (!item) return;
       menu.hidden = true;
       const que = item.dataset.menuItem;
+      if (que === "terminal" && objetivo) irALaTerminal(objetivo);
       if (que === "panel") abrirPanel();
       if (que === "encima") aplicar("encima", !cfg.encima);
-      if (que === "ocultar") aplicar("pet", false);
-      if (que === "salir") {
-        aplicar("pet", false);
-        bandejaTxt.textContent = "Abrir Bichito";
+      if (que === "ocultar" && objetivo) {
+        objetivo.oculto = true;
+        objetivo.aplicarVisibilidad();
+        bandejaTxt.textContent = "Mostrar todos";
       }
+      if (que === "mostrar") mostrarTodos();
     });
+
+    function mostrarTodos() {
+      bichos.forEach((b) => {
+        b.oculto = false;
+        b.aplicarVisibilidad();
+      });
+      bandejaTxt.textContent = "Bichito";
+    }
 
     function abrirPanel() {
       panel.hidden = false;
-      const m = medidas();
-      panel.style.setProperty("--x", `${Math.max(m.w * 0.52, 12)}px`);
-      panel.style.setProperty("--y", "3.5rem");
       activar("panel");
     }
     esc.querySelector("[data-cerrar-panel]").addEventListener("click", () => {
@@ -1006,11 +1054,11 @@ const toggles = [
       const casilla = esc.querySelector(`[data-cfg="${clave}"]`);
       if (casilla) casilla.checked = valor;
       if (clave === "pet") {
-        bic.hidden = !valor;
-        bandejaTxt.textContent = valor ? "Bichito" : "Mostrar bichito";
+        bichos.forEach((b) => b.aplicarVisibilidad());
+        bandejaTxt.textContent = valor ? "Bichito" : "Mostrar bichitos";
       }
-      if (clave === "encima") bic.dataset.atras = valor ? "0" : "1";
-      pintarTexto();
+      if (clave === "encima") bichos.forEach((b) => (b.el.dataset.atras = valor ? "0" : "1"));
+      bichos.forEach((b) => b.pintarTexto());
     }
     esc.querySelectorAll("[data-cfg]").forEach((c) => {
       c.checked = cfg[c.dataset.cfg];
@@ -1018,30 +1066,17 @@ const toggles = [
     });
 
     esc.querySelector("[data-bandeja]").addEventListener("click", () => {
-      aplicar("pet", !cfg.pet);
-      bandejaTxt.textContent = cfg.pet ? "Bichito" : "Mostrar bichito";
+      if (bichos.some((b) => b.oculto)) mostrarTodos();
+      else aplicar("pet", !cfg.pet);
     });
 
-    // ---------------------------------------------------------- mando
+    // ----------------------------------------------------------- mando
     esc.querySelectorAll("[data-accion]").forEach((b) =>
       b.addEventListener("click", () => {
-        S.corriendo = false;
-        correrTurno(b.dataset.accion === "pregunta");
-      }),
-    );
-    esc.querySelectorAll("[data-estado]").forEach((b) =>
-      b.addEventListener("click", () => {
-        limpiarTimers();
-        S.corriendo = false;
-        const e = b.dataset.estado;
-        if (e === "termino") {
-          S.congelado = S.desde ? fmt((Date.now() - S.desde) / 1000) : "4m 12s";
-          estado("termino");
-          chispas();
-        } else {
-          if (e === "esperando") S.desde = S.desde || Date.now();
-          estado(e);
-        }
+        const que = b.dataset.accion;
+        const bicho = que === "otro" ? bichos[1] : bichos[0];
+        bicho.corriendo = false;
+        correrTurno(bicho, que !== "turno");
       }),
     );
 
@@ -1053,36 +1088,34 @@ const toggles = [
     tic();
     setInterval(tic, 20000);
 
-    // ---------------------------------------------------------- arranque
-    function acomodar() {
-      const m = medidas();
-      S.home = { x: m.w - m.ancho - 28, y: 26 };
-      poner(S.home.x, S.home.y);
-      term.style.setProperty("--x", "1.5rem");
-      term.style.setProperty("--y", "2rem");
-    }
-    acomodar();
-    addEventListener("resize", () => {
-      const m = medidas();
-      S.home = { x: Math.min(S.home.x, m.w - m.ancho - 8), y: Math.min(S.home.y, m.h - m.alto - 30) };
-      poner(S.home.x, S.home.y);
+    // -------------------------------------------------------- arranque
+    bichos.forEach((b) => {
+      b.acomodar();
+      b.set("dormido");
     });
+    addEventListener("resize", () => bichos.forEach((b) => b.poner(b.home.x, b.home.y)));
 
-    estado("dormido");
-    linea("hook", "SessionStart → bichito-hook.exe idle --launch");
-    linea("tool", "el bichito está dormido. Pedile algo a Claude 👇");
-    requestAnimationFrame(deslizar);
+    bichos[0].linea("hook", "SessionStart → bichito-hook.exe idle --launch");
+    bichos[0].linea("tool", "dos Claude abiertos, dos bichitos 👇");
+    bichos[1].linea("hook", "SessionStart → idle --launch");
+    bichos[1].linea("tool", "esta sesión está dormida");
 
-    // primera visita: al entrar en pantalla, un turno solo para que se vea vivo.
-    // Corre también con "reducir movimiento": la demo es el contenido de la
-    // página, no un adorno. Lo que se apaga en ese caso es el deslizamiento,
-    // el sprite y las chispas.
+    function loop() {
+      bichos.forEach((b) => {
+        b.deslizar();
+        if (b.desde) b.pintarTexto();
+      });
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+
+    // al entrar en pantalla, un turno solo para que se vea vivo
     {
       const io = new IntersectionObserver(
         (entradas) => {
           if (entradas.some((x) => x.isIntersecting)) {
             io.disconnect();
-            luego(() => correrTurno(true), 900);
+            luego(() => correrTurno(bichos[0], true), 900);
           }
         },
         { threshold: 0.15 },

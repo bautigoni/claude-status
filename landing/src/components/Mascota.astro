@@ -10,7 +10,7 @@
  */
 import meta from "../../public/sprites/meta.json";
 
-const ALTO = 112;
+const ALTO = 172;
 const ANCHO = Math.round((meta.w * ALTO) / meta.h);
 ---
 
@@ -78,7 +78,7 @@ const ANCHO = Math.round((meta.w * ALTO) / meta.h);
   }
   .masc__label {
     margin-top: -4px;
-    font-size: 0.75rem;
+    font-size: 0.875rem;
     color: var(--color-cream);
     pointer-events: none;
     white-space: nowrap;
@@ -116,7 +116,7 @@ const ANCHO = Math.round((meta.w * ALTO) / meta.h);
   }
   .masc__dice {
     font-family: var(--font-pixel);
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     line-height: 1.4;
     color: var(--color-cream);
   }
@@ -270,12 +270,23 @@ const ANCHO = Math.round((meta.w * ALTO) / meta.h);
 
     function acomodar() {
       const g = leer();
-      const w = ANCHO;
-      const h = ALTO + 22;
-      poner(
-        typeof g.x === "number" ? g.x : innerWidth - w - 24,
-        typeof g.y === "number" ? g.y : innerHeight - h - 24,
-      );
+      if (typeof g.x === "number" && typeof g.y === "number") {
+        poner(g.x, g.y);
+        return;
+      }
+      // sin posición guardada nace al costado del título, que es donde la vista
+      // ya está puesta; si no entra al costado, abajo a la derecha
+      const titulo = document.querySelector("h1");
+      const w = masc.offsetWidth || ANCHO;
+      const h = masc.offsetHeight || ALTO + 26;
+      if (titulo) {
+        const r = titulo.getBoundingClientRect();
+        if (r.right + w + 40 < innerWidth) {
+          poner(r.right + 32, Math.max(r.top - 10, 12));
+          return;
+        }
+      }
+      poner(innerWidth - w - 24, innerHeight - h - 24);
     }
 
     // ------------------------------------------------------------ dibujo
@@ -317,13 +328,6 @@ const ANCHO = Math.round((meta.w * ALTO) / meta.h);
     // parás, lo da por terminado y se duerme.
     let scrollTimer = null;
     function alScrollear() {
-      // se escapa de la demo cuando la dejaste atrás. Va por getBoundingClientRect
-      // y no por IntersectionObserver: el observer avisa cuando el navegador
-      // tiene ganas, y de esto depende que el bichito exista.
-      if (masc.hidden) {
-        if (!demo || demo.getBoundingClientRect().bottom > 8) return;
-        aparecer();
-      }
       if (masc.hidden || S.estado === "esperando") return;
       if (S.estado !== "cocinando") {
         S.desde = Date.now();
@@ -477,11 +481,10 @@ const ANCHO = Math.round((meta.w * ALTO) / meta.h);
       pintarSprite();
     }
 
-    // si ya lo habías escondido, el botón para traerlo aparece de una
+    // aparece de entrada, al costado del título: es parte de la página, no un
+    // premio por scrollear
     if (leer().oculto) traer.hidden = false;
-    // y si entrás con la página ya scrolleada (un ancla, o el navegador que se
-    // acuerda dónde estabas), no hay que esperar a que muevas nada
-    if (!demo || demo.getBoundingClientRect().bottom < 8) aparecer();
+    aparecer();
 
     addEventListener("scroll", alScrollear, { passive: true });
     addEventListener("resize", () => {
