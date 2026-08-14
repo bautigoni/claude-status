@@ -30,6 +30,7 @@ WORKING_TIMEOUT = 900  # s sin latido -> se asume que la sesion murio (Esc, cier
 STALE = 86400          # s -> archivo de sesion viejo, se borra
 CELEBRATE = 2.4        # s de festejo antes de dormirse
 BANDA_USO = 24         # px de ventana extra debajo del sprite, para el % del plan
+ARRASTRE_MIN = 4       # px que hay que moverse para que cuente como arrastre
 
 TEXTO = {"cocinando": "Cocinando", "esperando": "Te espera",
          "termino": "Listo", "dormido": ""}
@@ -42,7 +43,12 @@ ULW_ALPHA = 0x02
 AC_SRC_OVER, AC_SRC_ALPHA = 0x00, 0x01
 WS_EX_LAYERED, WS_EX_TOOLWINDOW = 0x00080000, 0x00000080
 GWL_EXSTYLE = -20
+GW_OWNER = 4
+SW_RESTORE = 9
 LONG_PTR = ctypes.c_ssize_t
+# el escritorio y la barra de tareas son ventanas de explorer.exe: si la cadena
+# de procesos llegara hasta ahi, traerlas al frente no seria traer nada
+CLASES_ESCRITORIO = {"Progman", "Shell_TrayWnd", "WorkerW", "Button"}
 
 
 class BLENDFUNCTION(ctypes.Structure):
@@ -86,6 +92,43 @@ gdi32.CreateDIBSection.argtypes = [wintypes.HDC, ctypes.POINTER(BITMAPINFO), win
 gdi32.CreateDIBSection.restype = wintypes.HBITMAP
 gdi32.SelectObject.argtypes = [wintypes.HDC, wintypes.HGDIOBJ]
 gdi32.SelectObject.restype = wintypes.HGDIOBJ
+# los restype van declarados si o si: por defecto ctypes asume int de 32 bits y
+# en 64 bits un HWND devuelto asi vuelve truncado
+user32.GetWindow.argtypes = [wintypes.HWND, wintypes.UINT]
+user32.GetWindow.restype = wintypes.HWND
+user32.SetForegroundWindow.argtypes = [wintypes.HWND]
+user32.SetForegroundWindow.restype = wintypes.BOOL
+user32.IsIconic.argtypes = [wintypes.HWND]
+user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+ENUM_PROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+
+def ventana_principal(pid):
+    """HWND de la ventana principal del proceso, o None.
+
+    Principal = visible, sin dueno (los dialogos y los tooltips tienen dueno) y
+    con titulo. Claude Code y la shell no tienen ventana propia cuando corren
+    adentro de Windows Terminal o de VS Code, asi que en esa cadena la primera
+    que aparece es justo la que hay que traer al frente.
+    """
+    hallada = []
+
+    def visitar(hwnd, _):
+        p = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(p))
+        if p.value != pid or not user32.IsWindowVisible(hwnd):
+            return True
+        if user32.GetWindow(hwnd, GW_OWNER) or user32.GetWindowTextLengthW(hwnd) == 0:
+            return True
+        cls = ctypes.create_unicode_buffer(64)
+        user32.GetClassNameW(hwnd, cls, 64)
+        if cls.value in CLASES_ESCRITORIO:
+            return True
+        hallada.append(hwnd)
+        return False   # False corta la enumeracion
+
+    user32.EnumWindows(ENUM_PROC(visitar), 0)
+    return hallada[0] if hallada else None
 
 
 def toplevel_hwnd(widget):
@@ -153,8 +196,11 @@ def read_state():
 
     Prioridad esperando > cocinando > dormido: si hay dos Claude abiertos, que
     uno termine no tiene que apagar al otro.
+
+    Devuelve tambien los PID de la sesion que gano, para que el click sepa a que
+    ventana llevarte: con dos Claude abiertos, te lleva al que te esta esperando.
     """
-    best, since, timed_out = "idle", None, False
+    best, since, timed_out, focus = "idle", None, False, []
     now = time.time()
     sdir = core.state_dir()
     for name in os.listdir(sdir):
@@ -178,11 +224,12 @@ def read_state():
         if st in ("working", "waiting") and age > WORKING_TIMEOUT:
             timed_out = True
             continue
+        pids = [p for p in (data.get("focus") or []) if isinstance(p, int)]
         if st == "waiting" and best != "waiting":
-            best, since = "waiting", data.get("since")
+            best, since, focus = "waiting", data.get("since"), pids
         elif st == "working" and best == "idle":
-            best, since = "working", data.get("since")
-    return best, since, timed_out
+            best, since, focus = "working", data.get("since"), pids
+    return best, since, timed_out, focus
 
 
 def fmt(seconds):
@@ -240,13 +287,16 @@ class Bichito:
         self.usage = None
         self._cache = (None, None)
         self._drag = None
+        self._press = (0, 0)
+        self._moved = False
         # lo arrastraste durante esta espera: el centro deja de tironear hasta
         # que deje de esperar
         self.pinned = False
+        self.focus_pids = []   # cadena de procesos hasta la terminal de la sesion
 
         self.root.bind("<Button-1>", self.drag_start)
         self.root.bind("<B1-Motion>", self.drag_move)
-        self.root.bind("<ButtonRelease-1>", lambda e: self.save_pos())
+        self.root.bind("<ButtonRelease-1>", self.drag_end)
         self.root.bind("<Button-3>", self.popup)
         self.menu = tk.Menu(self.root, tearoff=0)
         self.menu.add_command(label="Abrir panel", command=lambda: self.open_panel())
@@ -329,22 +379,62 @@ class Bichito:
 
     def drag_start(self, e):
         self._drag = (e.x_root - self.x, e.y_root - self.y)
+        self._press = (e.x_root, e.y_root)
+        self._moved = False
 
     def drag_move(self, e):
-        if self._drag:
-            self.x = e.x_root - self._drag[0]
-            self.y = e.y_root - self._drag[1]
-            self.fx, self.fy = float(self.x), float(self.y)
-            self.home = (self.x, self.y)   # arrastrarlo redefine su lugar
-            # solo al mover, no en el click: un click suelto no tiene por que
-            # cancelar el salto al centro
-            self.pinned = True
-            # solo cambio la posicion: se reusa el bitmap ya premultiplicado en
-            # vez de recomponerlo en cada evento de movimiento
-            if self._cache[1] is not None:
-                self.layer.blit(self._cache[1], self.x, self.y)
-            else:
-                self.render()
+        if not self._drag:
+            return
+        # umbral: ningun click sale perfectamente quieto, y sin esto el temblor
+        # de la mano contaria como arrastre y se comeria el click
+        if not self._moved:
+            if (abs(e.x_root - self._press[0]) < ARRASTRE_MIN
+                    and abs(e.y_root - self._press[1]) < ARRASTRE_MIN):
+                return
+            self._moved = True
+        self.x = e.x_root - self._drag[0]
+        self.y = e.y_root - self._drag[1]
+        self.fx, self.fy = float(self.x), float(self.y)
+        self.home = (self.x, self.y)   # arrastrarlo redefine su lugar
+        # arrastrar gana: mientras dure esta espera, el centro deja de tironear
+        self.pinned = True
+        # solo cambio la posicion: se reusa el bitmap ya premultiplicado en vez
+        # de recomponerlo en cada evento de movimiento
+        if self._cache[1] is not None:
+            self.layer.blit(self._cache[1], self.x, self.y)
+        else:
+            self.render()
+
+    def drag_end(self, e):
+        """Soltar el boton: si lo moviste, se guarda donde quedo; si fue un
+        click limpio, te lleva a donde Claude te esta esperando."""
+        self._drag = None
+        if self._moved:
+            self.save_pos()
+        else:
+            self.focus_session()
+
+    def focus_session(self):
+        """Trae al frente la ventana de la sesion que manda el estado.
+
+        Los PID los escribe el hook (la cadena de procesos hasta la terminal).
+        Los primeros suelen no tener ventana -o ya ni existir, como los procesos
+        cortitos que lanza cada herramienta-, asi que se prueba en orden y gana
+        el primero que tenga una.
+
+        Windows solo deja cambiar el primer plano al proceso que ya lo tiene, y
+        el click sobre el bichito nos lo acaba de dar: por eso no hace falta
+        ninguno de los trucos con AttachThreadInput.
+        """
+        for pid in self.focus_pids:
+            hwnd = ventana_principal(pid)
+            if not hwnd:
+                continue
+            if user32.IsIconic(hwnd):
+                user32.ShowWindow(hwnd, SW_RESTORE)
+            user32.SetForegroundWindow(hwnd)
+            return True
+        return False
 
     def popup(self, e):
         self.menu.entryconfigure(0, label="Siempre encima  " + ("si" if self.topmost else "no"))
@@ -382,7 +472,11 @@ class Bichito:
         # estamos en el loop que re-renderiza cada 250ms y el read es barato
         self.usage = bichito_usage.read()
 
-        raw, since, timed_out = read_state()
+        raw, since, timed_out, focus = read_state()
+        # la ultima cadena conocida se conserva: asi el click sigue llevandote a
+        # la terminal aunque la sesion ya haya pasado a dormida
+        if focus:
+            self.focus_pids = focus
         if raw != self.raw:
             # se festeja solo si termino de verdad (hook Stop). Si la sesion se
             # cayo y la descarto el timeout, el tiempo seria inventado

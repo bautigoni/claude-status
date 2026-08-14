@@ -28,6 +28,100 @@ const STDIN_TIMEOUT: Duration = Duration::from_millis(400);
 /// Segundos que un "waiting" recien escrito resiste que lo pisen con "working".
 const WAITING_HOLD: f64 = 3.0;
 
+// ------------------------------------------------------- la ventana del turno
+// Para que hacerle click al bichito te lleve a donde Claude te esta preguntando.
+// El payload del hook no dice una palabra de la ventana, pero la cadena de
+// procesos si: a este exe lo lanzo Claude Code, a Claude Code la shell, y a la
+// shell la terminal. Se guardan los PID de los ancestros y el bichito, al click,
+// se queda con el primero que tenga una ventana visible.
+const TH32CS_SNAPPROCESS: u32 = 0x0000_0002;
+const INVALID_HANDLE_VALUE: isize = -1;
+const MAX_ANCESTROS: usize = 8;
+/// Duenos del escritorio: si la cadena llega hasta aca, cortar. Hacerle click al
+/// bichito para que te abra el explorador de archivos no le sirve a nadie.
+const RAIZ: [&str; 5] = [
+    "explorer.exe",
+    "services.exe",
+    "wininit.exe",
+    "winlogon.exe",
+    "svchost.exe",
+];
+
+#[repr(C)]
+struct ProcessEntry32 {
+    dw_size: u32,
+    cnt_usage: u32,
+    th32_process_id: u32,
+    th32_default_heap_id: usize,
+    th32_module_id: u32,
+    cnt_threads: u32,
+    th32_parent_process_id: u32,
+    pc_pri_class_base: i32,
+    dw_flags: u32,
+    sz_exe_file: [u8; 260],
+}
+
+extern "system" {
+    fn CreateToolhelp32Snapshot(flags: u32, pid: u32) -> isize;
+    fn Process32First(snap: isize, entry: *mut ProcessEntry32) -> i32;
+    fn Process32Next(snap: isize, entry: *mut ProcessEntry32) -> i32;
+    fn CloseHandle(h: isize) -> i32;
+    fn GetCurrentProcessId() -> u32;
+}
+
+/// PID de los ancestros, del mas cercano al mas lejano.
+///
+/// Toolhelp y no NtQueryInformationProcess: el snapshot no necesita abrir cada
+/// proceso, asi que tambien funciona si la terminal corre elevada. Cuesta unos
+/// ms, por eso solo se llama al escribir "waiting", que es raro; el camino
+/// caliente (working, en cada tool call) hereda la cadena que ya estaba escrita.
+fn ancestros() -> Vec<u32> {
+    let mut tabla: Vec<(u32, u32, String)> = Vec::new();
+    unsafe {
+        let snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if snap == INVALID_HANDLE_VALUE {
+            return Vec::new();
+        }
+        let mut e: ProcessEntry32 = std::mem::zeroed();
+        // sin dwSize, Process32First devuelve FALSE y no se entera nadie
+        e.dw_size = std::mem::size_of::<ProcessEntry32>() as u32;
+        let mut hay = Process32First(snap, &mut e);
+        while hay != 0 {
+            let fin = e.sz_exe_file.iter().position(|&c| c == 0).unwrap_or(0);
+            let nombre = String::from_utf8_lossy(&e.sz_exe_file[..fin]).to_lowercase();
+            tabla.push((e.th32_process_id, e.th32_parent_process_id, nombre));
+            hay = Process32Next(snap, &mut e);
+        }
+        CloseHandle(snap);
+    }
+
+    let mut cadena = Vec::new();
+    let mut vistos = Vec::new();
+    let mut pid = unsafe { GetCurrentProcessId() };
+    for _ in 0..MAX_ANCESTROS {
+        let Some((_, padre, _)) = tabla.iter().find(|(p, _, _)| *p == pid) else {
+            break;
+        };
+        let padre = *padre;
+        // el 0 no existe, y un PID repetido seria un ciclo por reuso de numero
+        if padre == 0 || vistos.contains(&padre) {
+            break;
+        }
+        let nombre = tabla
+            .iter()
+            .find(|(p, _, _)| *p == padre)
+            .map(|(_, _, n)| n.as_str())
+            .unwrap_or("");
+        if RAIZ.contains(&nombre) {
+            break;
+        }
+        vistos.push(padre);
+        cadena.push(padre);
+        pid = padre;
+    }
+    cadena
+}
+
 fn data_dir() -> PathBuf {
     let base = std::env::var("LOCALAPPDATA").unwrap_or_else(|_| ".".into());
     Path::new(&base).join("Bichito")
@@ -224,11 +318,20 @@ fn write_state(dir: &Path, state: &str, payload: &str) {
 
     let t = now();
     let mut since = t;
+    let mut focus: Vec<u32> = Vec::new();
+    if state == "waiting" {
+        focus = ancestros();
+    }
     if state == "working" {
         if let Ok(prev) = fs::read_to_string(&path) {
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(&prev) {
                 let prev_state = v.get("state").and_then(|s| s.as_str()).unwrap_or("");
                 let prev_ts = v.get("ts").and_then(|s| s.as_f64()).unwrap_or(0.0);
+                // la cadena hasta la terminal se hereda: sacarla de nuevo seria
+                // un snapshot de procesos en cada llamada a herramienta
+                if let Some(f) = v.get("focus").and_then(|f| f.as_array()) {
+                    focus = f.iter().filter_map(|x| x.as_u64().map(|n| n as u32)).collect();
+                }
 
                 // Cuando Claude hace una pregunta, PreToolUse dispara DOS hooks
                 // a la vez: el de matcher "*" con "working" y el especifico con
@@ -249,10 +352,13 @@ fn write_state(dir: &Path, state: &str, payload: &str) {
         }
     }
 
-    let body = format!(
-        "{{\"state\": \"{}\", \"ts\": {}, \"since\": {}}}",
-        state, t, since
-    );
+    let body = serde_json::json!({
+        "state": state,
+        "ts": t,
+        "since": since,
+        "focus": focus,
+    })
+    .to_string();
     let tmp = path.with_extension("tmp");
     if fs::write(&tmp, body).is_ok() {
         let _ = fs::rename(&tmp, &path);

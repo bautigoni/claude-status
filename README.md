@@ -38,6 +38,12 @@ y un comando `C:/...` no se ejecutaría ahí.
   arrancan en el **desbordamiento** (la flechita ⌃ al lado del reloj): arrastralo
   fuera para dejarlo fijo.
 - **Arrastrar** con el botón izquierdo lo mueve, y ahí queda para la próxima.
+- **Un click** (sin arrastrar) trae al frente la terminal de esa sesión, aunque
+  esté minimizada. Con dos Claude abiertos te lleva al que te está esperando.
+  El hook guarda la cadena de procesos hasta la terminal en el archivo de
+  estado; el bichito se queda con el primer ancestro que tenga ventana visible,
+  porque Claude Code y la shell no tienen ventana propia adentro de Windows
+  Terminal o de VS Code.
 - **Botón derecho** sobre el bichito abre el mismo menú.
 - La ventana no tiene entrada en la barra de tareas ni sale con alt-tab: la
   bandeja es la puerta de entrada.
