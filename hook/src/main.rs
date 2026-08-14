@@ -295,11 +295,16 @@ fn proyecto(v: &serde_json::Value) -> String {
         .unwrap_or_default()
 }
 
-fn with_message(payload: &str, cfg: &Config, state: &str) -> String {
+fn with_message(payload: &str, cfg: &Config, state: &str, fijado: Option<&str>) -> String {
     let mut v: serde_json::Value =
         serde_json::from_str(payload).unwrap_or_else(|_| serde_json::json!({}));
 
-    let proyecto = proyecto(&v);
+    // el nombre que ya tenia la sesion gana sobre el cwd de este momento: si no,
+    // la voz diria "el proyecto dist termino" cuando el bichito dice otra cosa
+    let proyecto = match fijado {
+        Some(n) if !n.is_empty() => n.to_string(),
+        _ => proyecto(&v),
+    };
 
     let plantilla = if state == "idle" || state == "fin" {
         &cfg.msg_done
@@ -319,10 +324,10 @@ fn with_message(payload: &str, cfg: &Config, state: &str) -> String {
 
 /// Escribe state/<sesion>.json de forma atomica (temp + rename): el bichito
 /// nunca puede leer un archivo a medio escribir.
-fn write_state(dir: &Path, state: &str, payload: &str) {
+fn write_state(dir: &Path, state: &str, payload: &str) -> Option<String> {
     let states = dir.join("state");
     if fs::create_dir_all(&states).is_err() {
-        return;
+        return None;
     }
     let path = states.join(format!("{}.json", session_id(payload)));
 
@@ -331,7 +336,7 @@ fn write_state(dir: &Path, state: &str, payload: &str) {
     // no un cementerio de sesiones viejas.
     if state == "fin" {
         let _ = fs::remove_file(&path);
-        return;
+        return None;
     }
 
     let payload_json: serde_json::Value =
@@ -370,7 +375,7 @@ fn write_state(dir: &Path, state: &str, payload: &str) {
                 // "waiting". Sin esta regla cual gana es azar y la pregunta se
                 // perderia. "waiting" recien puesto no se pisa.
                 if prev_state == "waiting" && t - prev_ts < WAITING_HOLD {
-                    return;
+                    return None;
                 }
                 // si ya venia trabajando se conserva el arranque, para que el
                 // cronometro cuente el turno entero y no se reinicie con cada
@@ -390,18 +395,24 @@ fn write_state(dir: &Path, state: &str, payload: &str) {
         focus = ancestros();
     }
 
+    let nombre = if nombre.is_empty() {
+        proyecto(&payload_json)
+    } else {
+        nombre
+    };
     let body = serde_json::json!({
         "state": state,
         "ts": t,
         "since": since,
         "focus": focus,
-        "proyecto": if nombre.is_empty() { proyecto(&payload_json) } else { nombre },
+        "proyecto": nombre,
     })
     .to_string();
     let tmp = path.with_extension("tmp");
     if fs::write(&tmp, body).is_ok() {
         let _ = fs::rename(&tmp, &path);
     }
+    Some(nombre)
 }
 
 fn speak(cfg: &Config, payload: &str) {
@@ -477,8 +488,19 @@ fn main() {
         None => (state.as_str(), true),
     };
 
+    let mut nombre = None;
     if cfg.pet && guardar {
-        write_state(&dir, state, &payload);
+        nombre = write_state(&dir, state, &payload);
+    }
+    if nombre.is_none() {
+        // no se escribio (avisos que no tocan el estado, o el bichito apagado):
+        // igual se busca el nombre que ya tenia la sesion, para que la voz diga
+        // lo mismo que muestra la ventanita
+        nombre = fs::read_to_string(dir.join("state").join(format!("{}.json", session_id(&payload))))
+            .ok()
+            .and_then(|t| serde_json::from_str::<serde_json::Value>(t.trim_start_matches('\u{feff}')).ok())
+            .and_then(|v| v.get("proyecto")?.as_str().map(String::from))
+            .filter(|s| !s.is_empty());
     }
     // El launch NO va atado a cfg.pet: ese proceso tambien sostiene el icono de
     // la bandeja, que tiene que estar aunque la ventanita flotante este apagada.
@@ -486,6 +508,6 @@ fn main() {
         launch_pet(&dir);
     }
     if has("--voice") && cfg.voice {
-        speak(&cfg, &with_message(&payload, &cfg, state));
+        speak(&cfg, &with_message(&payload, &cfg, state, nombre.as_deref()));
     }
 }

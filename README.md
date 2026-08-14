@@ -4,14 +4,22 @@ Mascota flotante para Claude Code: te muestra si está trabajando, si te está
 esperando o si ya terminó, sin que tengas que mirar la terminal. Viene con un
 panel para prender y apagar cada cosa.
 
-**Hay un bichito por sesión de Claude abierta**, en fila y con el nombre del
-proyecto abajo. Con seis Claude a la vez, saber que "algo" te está esperando no
-sirve de nada: lo que necesitás es saber **cuál**. El que te espera queda a todo
-color y el resto se apaga; clickeando uno vas a la terminal de esa sesión.
+**Hay un bichito por sesión de Claude abierta**, cada uno en su propia ventanita
+y con el nombre del proyecto abajo. Con seis Claude a la vez, saber que "algo" te
+está esperando no sirve de nada: lo que necesitás es saber **cuál**.
 
-Se achican solos según cuántos haya (uno solo se ve a tamaño completo) y cuando
-cerrás un Claude, su bichito se va: el hook borra el archivo de estado en
-`SessionEnd`.
+- **Cada uno se mueve por separado** y se acuerda de dónde lo dejaste. La
+  posición se guarda **por proyecto**, así que la próxima sesión de ese proyecto
+  nace en el mismo lugar.
+- **Solo el que te espera salta al centro.** Si saltaran todos te taparían la
+  pantalla.
+- **Podés esconder uno solo** (botón derecho → *Ocultar &lt;proyecto&gt;*) y
+  traerlos de vuelta desde la bandeja o el mismo menú.
+- **Tamaño a gusto**: botón derecho → *Tamaño* (auto, grande, mediano, chico).
+  En automático se achican recién cuando hay varios.
+- **Clickeás uno y vas a esa terminal.**
+- Cuando cerrás un Claude, su bichito se va: el hook borra el archivo de estado
+  en `SessionEnd`.
 
 | Estado | Se ve | Lo dispara |
 |---|---|---|

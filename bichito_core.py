@@ -26,6 +26,9 @@ DEFAULTS = {
     "always_on_top": True,
     "autostart": True,        # levantarlo solo al abrir Claude Code
     "center_on_wait": True,   # saltar al centro de la pantalla mientras espera
+    # tamano de los bichitos: auto | grande | mediano | chico. En automatico se
+    # achican solos cuando hay varias sesiones abiertas
+    "tamano": "auto",
     "voice_script": "",       # .ps1 que habla (lo pone el instalador)
     # {proyecto} se reemplaza por el nombre de la carpeta del proyecto
     "msg_done": "El proyecto {proyecto} terminó",
