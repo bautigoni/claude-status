@@ -1,0 +1,491 @@
+---
+/**
+ * El bichito suelto: el mismo, pero afuera de la demo, viviendo en la página
+ * como viviría en tu escritorio.
+ *
+ * Aparece cuando el escritorio de arriba se va de pantalla —mientras jugás con
+ * la demo no tiene sentido que haya dos— y de ahí en más te sigue por toda la
+ * página. Se arrastra, se acuerda dónde lo dejaste, cocina mientras scrolleás,
+ * festeja cuando parás y, si lo clickeás, te hace una pregunta.
+ */
+import meta from "../../public/sprites/meta.json";
+
+const ALTO = 112;
+const ANCHO = Math.round((meta.w * ALTO) / meta.h);
+---
+
+<div class="masc" data-masc hidden>
+  <div
+    class="masc__cuerpo"
+    data-masc-agarre
+    role="button"
+    tabindex="0"
+    aria-label="El bichito. Clickealo para que te hable, arrastralo para moverlo, botón derecho para el menú."
+  >
+    <div
+      class="masc__sprite sprite pixel"
+      data-masc-sprite
+      style={`width:${ANCHO}px;height:${ALTO}px`}
+    >
+    </div>
+    <span class="masc__label hud hud-sombra" data-masc-label></span>
+  </div>
+
+  <div class="masc__globo" data-masc-globo hidden>
+    <p class="masc__dice" data-masc-dice></p>
+    <div class="masc__ops" data-masc-ops></div>
+  </div>
+
+  <ul class="masc__menu" data-masc-menu hidden role="menu">
+    <li><button role="menuitem" data-masc-item="descarga">Bajar la app</button></li>
+    <li><button role="menuitem" data-masc-item="demo">Volver al escritorio</button></li>
+    <li class="masc__raya" role="separator"></li>
+    <li><button role="menuitem" data-masc-item="ocultar">Ocultar el bichito</button></li>
+  </ul>
+</div>
+
+<button class="masc__traer" data-masc-traer hidden>
+  <img src="/favicon.png" alt="" class="pixel size-4" width="16" height="16" />
+  Traer al bichito
+</button>
+
+<style is:global>
+  .masc {
+    position: fixed;
+    left: var(--mx, auto);
+    top: var(--my, auto);
+    z-index: 60;
+    display: grid;
+    justify-items: center;
+    filter: drop-shadow(0 12px 20px rgb(0 0 0 / 0.55));
+  }
+  .masc[hidden] {
+    display: none;
+  }
+  .masc__cuerpo {
+    display: grid;
+    justify-items: center;
+    cursor: grab;
+    touch-action: none;
+  }
+  .masc__cuerpo:active {
+    cursor: grabbing;
+  }
+  .masc__cuerpo:focus-visible {
+    outline: 2px solid var(--color-clay);
+    outline-offset: 6px;
+    border-radius: 0.5rem;
+  }
+  .masc__label {
+    margin-top: -4px;
+    font-size: 0.75rem;
+    color: var(--color-cream);
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  /* respira mientras te espera, igual que en la demo */
+  .masc__cuerpo::before {
+    content: "";
+    position: absolute;
+    inset: -18% -28%;
+    background: radial-gradient(circle at 50% 45%, #d9775740, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.4s;
+    pointer-events: none;
+  }
+  .masc[data-espera="1"] .masc__cuerpo::before {
+    opacity: 1;
+    animation: latir 2.4s ease-in-out infinite;
+  }
+
+  .masc__globo {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    right: 0;
+    width: max-content;
+    max-width: 15rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--color-ink-line);
+    border-radius: 0.6rem;
+    background: #241d17f5;
+    box-shadow: 0 18px 36px -18px rgb(0 0 0 / 0.9);
+  }
+  .masc__globo[hidden] {
+    display: none;
+  }
+  .masc__dice {
+    font-family: var(--font-pixel);
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: var(--color-cream);
+  }
+  .masc__ops {
+    display: flex;
+    gap: 0.35rem;
+    margin-top: 0.5rem;
+  }
+  .masc__ops:empty {
+    display: none;
+  }
+  .masc__ops button {
+    border: 1px solid var(--color-ink-line);
+    border-radius: 0.4rem;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.75rem;
+    color: var(--color-cream);
+    background: #ffffff08;
+  }
+  .masc__ops button:hover {
+    border-color: var(--color-clay);
+    color: var(--color-clay-soft);
+  }
+  .masc__ops button:first-child {
+    background: var(--color-clay);
+    border-color: var(--color-clay);
+    color: #1a120d;
+    font-weight: 600;
+  }
+  .masc__ops button:first-child:hover {
+    color: #1a120d;
+    filter: brightness(1.08);
+  }
+
+  .masc__menu {
+    position: absolute;
+    top: 0;
+    left: calc(100% + 6px);
+    z-index: 70;
+    min-width: 11rem;
+    padding: 0.25rem;
+    border: 1px solid var(--color-ink-line);
+    border-radius: 0.5rem;
+    background: #221c16f5;
+    box-shadow: 0 20px 40px -18px rgb(0 0 0 / 0.9);
+  }
+  .masc__menu[hidden] {
+    display: none;
+  }
+  .masc__menu button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 0.35rem 0.6rem;
+    border-radius: 0.35rem;
+    font-size: 0.8125rem;
+    color: var(--color-cream);
+  }
+  .masc__menu button:hover {
+    background: var(--color-clay);
+    color: var(--color-ink);
+  }
+  .masc__raya {
+    height: 1px;
+    margin: 0.25rem 0.3rem;
+    background: var(--color-ink-line);
+  }
+
+  /* si lo escondiste, la manera de traerlo de vuelta */
+  .masc__traer {
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 60;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.45rem 0.75rem;
+    border: 1px solid var(--color-ink-line);
+    border-radius: 999px;
+    background: #1f1a15f2;
+    font-size: 0.8125rem;
+    color: var(--color-ash);
+  }
+  .masc__traer[hidden] {
+    display: none;
+  }
+  .masc__traer:hover {
+    color: var(--color-cream);
+    border-color: var(--color-clay);
+  }
+</style>
+
+<script define:vars={{ meta, ALTO, ANCHO }}>
+  (() => {
+    const masc = document.querySelector("[data-masc]");
+    const demo = document.querySelector("[data-esc]");
+    if (!masc) return;
+
+    const agarre = masc.querySelector("[data-masc-agarre]");
+    const sprite = masc.querySelector("[data-masc-sprite]");
+    const label = masc.querySelector("[data-masc-label]");
+    const globo = masc.querySelector("[data-masc-globo]");
+    const dice = masc.querySelector("[data-masc-dice]");
+    const ops = masc.querySelector("[data-masc-ops]");
+    const menu = masc.querySelector("[data-masc-menu]");
+    const traer = document.querySelector("[data-masc-traer]");
+
+    const quieto = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const TEXTO = { cocinando: "Cocinando", esperando: "Te espera", termino: "Listo", dormido: "" };
+    const LLAVE = "bichito-suelto";
+
+    const S = { estado: "dormido", desde: 0, congelado: "", x: 0, y: 0, timers: [] };
+
+    const fmt = (s) => {
+      s = Math.max(0, Math.floor(s));
+      return s >= 60 ? `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s` : `${s}s`;
+    };
+    const luego = (fn, ms) => S.timers.push(setTimeout(fn, ms));
+    const limpiar = () => {
+      S.timers.forEach(clearTimeout);
+      S.timers = [];
+    };
+
+    // ------------------------------------------------------------ memoria
+    const leer = () => {
+      try {
+        return JSON.parse(localStorage.getItem(LLAVE) || "{}");
+      } catch {
+        return {};
+      }
+    };
+    const guardar = (datos) => {
+      try {
+        localStorage.setItem(LLAVE, JSON.stringify({ ...leer(), ...datos }));
+      } catch {
+        /* modo incógnito o storage lleno: se pierde la posición y nada más */
+      }
+    };
+
+    // ----------------------------------------------------------- posición
+    function poner(x, y) {
+      const caja = masc.getBoundingClientRect();
+      const w = caja.width || ANCHO;
+      const h = caja.height || ALTO + 20;
+      S.x = Math.min(Math.max(x, 8), innerWidth - w - 8);
+      S.y = Math.min(Math.max(y, 8), innerHeight - h - 8);
+      masc.style.setProperty("--mx", `${S.x}px`);
+      masc.style.setProperty("--my", `${S.y}px`);
+    }
+
+    function acomodar() {
+      const g = leer();
+      const w = ANCHO;
+      const h = ALTO + 22;
+      poner(
+        typeof g.x === "number" ? g.x : innerWidth - w - 24,
+        typeof g.y === "number" ? g.y : innerHeight - h - 24,
+      );
+    }
+
+    // ------------------------------------------------------------ dibujo
+    function pintarSprite() {
+      const info = meta[S.estado];
+      sprite.style.backgroundImage = `url(/sprites/${S.estado}.png)`;
+      sprite.style.setProperty("--strip", `${ANCHO * info.frames}px`);
+      sprite.style.setProperty("--frames", info.frames);
+      sprite.style.setProperty("--dur", `${(info.frames / info.fps).toFixed(2)}s`);
+      sprite.classList.toggle("sprite--once", S.estado === "termino");
+      sprite.style.animation = "none";
+      void sprite.offsetWidth;
+      sprite.style.animation = "";
+    }
+
+    function pintarTexto() {
+      if (S.estado === "termino") label.textContent = `Listo  ${S.congelado}`.trim();
+      else {
+        const base = TEXTO[S.estado] || "";
+        label.textContent = base && S.desde ? `${base}  ${fmt((Date.now() - S.desde) / 1000)}` : base;
+      }
+    }
+
+    function estado(nuevo) {
+      if (nuevo !== S.estado) {
+        S.estado = nuevo;
+        masc.dataset.espera = nuevo === "esperando" ? "1" : "0";
+        pintarSprite();
+      }
+      pintarTexto();
+    }
+
+    setInterval(() => {
+      if (S.desde && !masc.hidden) pintarTexto();
+    }, 500);
+
+    // -------------------------------------------------- cocina si scrolleás
+    // La página es su escritorio: mientras la movés, tiene trabajo; cuando
+    // parás, lo da por terminado y se duerme.
+    let scrollTimer = null;
+    function alScrollear() {
+      // se escapa de la demo cuando la dejaste atrás. Va por getBoundingClientRect
+      // y no por IntersectionObserver: el observer avisa cuando el navegador
+      // tiene ganas, y de esto depende que el bichito exista.
+      if (masc.hidden) {
+        if (!demo || demo.getBoundingClientRect().bottom > 8) return;
+        aparecer();
+      }
+      if (masc.hidden || S.estado === "esperando") return;
+      if (S.estado !== "cocinando") {
+        S.desde = Date.now();
+        estado("cocinando");
+      }
+      clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(() => {
+        if (S.estado !== "cocinando") return;
+        S.congelado = fmt((Date.now() - S.desde) / 1000);
+        estado("termino");
+        luego(() => {
+          S.desde = 0;
+          estado("dormido");
+        }, 2400);
+      }, 1800);
+    }
+
+    // ------------------------------------------------------------ la charla
+    const CHARLAS = [
+      {
+        dice: "¿Te lo llevás? Pesa 30 MB y no necesita nada más.",
+        ops: [
+          { txt: "Bajarlo", hace: () => (location.href = "/Bichito.zip") },
+          { txt: "Después", hace: () => {} },
+        ],
+      },
+      {
+        dice: "Así te aviso cuando Claude termina: sin mirar la terminal.",
+        ops: [{ txt: "Dale", hace: () => {} }],
+      },
+      {
+        dice: "Arrastrame a donde quieras. Ahí me quedo, hasta la próxima visita.",
+        ops: [{ txt: "Listo", hace: () => {} }],
+      },
+    ];
+    let charla = 0;
+
+    function hablar() {
+      limpiar();
+      const c = CHARLAS[charla % CHARLAS.length];
+      charla++;
+      dice.textContent = c.dice;
+      ops.innerHTML = "";
+      c.ops.forEach(({ txt, hace }) => {
+        const b = document.createElement("button");
+        b.textContent = txt;
+        b.addEventListener("click", () => {
+          cerrarGlobo();
+          hace();
+        });
+        ops.appendChild(b);
+      });
+      globo.hidden = false;
+      S.desde = Date.now();
+      estado("esperando");
+      luego(cerrarGlobo, 9000);
+    }
+
+    function cerrarGlobo() {
+      globo.hidden = true;
+      if (S.estado === "esperando") {
+        S.desde = 0;
+        estado("dormido");
+      }
+    }
+
+    // ---------------------------------------------------------- arrastrar
+    let id = null;
+    let ini = null;
+    let movido = false;
+    agarre.addEventListener("pointerdown", (e) => {
+      if (e.button === 2) return;
+      id = e.pointerId;
+      movido = false;
+      ini = { dx: e.clientX - S.x, dy: e.clientY - S.y, x: e.clientX, y: e.clientY };
+      try {
+        agarre.setPointerCapture(id);
+      } catch {
+        /* sin captura anda igual mientras el puntero no se escape */
+      }
+    });
+    agarre.addEventListener("pointermove", (e) => {
+      if (id === null || e.pointerId !== id) return;
+      if (!movido) {
+        if (Math.abs(e.clientX - ini.x) < 4 && Math.abs(e.clientY - ini.y) < 4) return;
+        movido = true;
+        menu.hidden = true;
+      }
+      poner(e.clientX - ini.dx, e.clientY - ini.dy);
+    });
+    const soltar = () => {
+      if (id === null) return;
+      try {
+        agarre.releasePointerCapture(id);
+      } catch {}
+      id = null;
+      if (movido) guardar({ x: S.x, y: S.y });
+      else hablar();
+    };
+    agarre.addEventListener("pointerup", soltar);
+    agarre.addEventListener("pointercancel", soltar);
+    agarre.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        hablar();
+      }
+    });
+
+    // --------------------------------------------------------------- menú
+    agarre.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      globo.hidden = true;
+      menu.hidden = false;
+    });
+    document.addEventListener("pointerdown", (e) => {
+      if (!menu.hidden && !menu.contains(e.target) && !agarre.contains(e.target)) menu.hidden = true;
+    });
+    menu.addEventListener("click", (e) => {
+      const item = e.target.closest("[data-masc-item]");
+      if (!item) return;
+      menu.hidden = true;
+      const que = item.dataset.mascItem;
+      if (que === "descarga") location.href = "/Bichito.zip";
+      if (que === "demo") document.querySelector("[data-esc]")?.scrollIntoView({ behavior: quieto ? "auto" : "smooth", block: "center" });
+      if (que === "ocultar") esconder(true);
+    });
+
+    function esconder(si) {
+      masc.hidden = si;
+      traer.hidden = !si;
+      guardar({ oculto: si });
+      if (!si) {
+        acomodar();
+        estado("dormido");
+      }
+    }
+    traer.addEventListener("click", () => esconder(false));
+
+    // -------------------------------------------------------------- salida
+    // Aparece cuando el escritorio de la hero se va de pantalla: mientras
+    // jugás con la demo, dos bichitos serían uno de más.
+    function aparecer() {
+      if (leer().oculto) {
+        traer.hidden = false;
+        return;
+      }
+      if (!masc.hidden) return;
+      masc.hidden = false;
+      acomodar();
+      estado("dormido");
+      pintarSprite();
+    }
+
+    // si ya lo habías escondido, el botón para traerlo aparece de una
+    if (leer().oculto) traer.hidden = false;
+    // y si entrás con la página ya scrolleada (un ancla, o el navegador que se
+    // acuerda dónde estabas), no hay que esperar a que muevas nada
+    if (!demo || demo.getBoundingClientRect().bottom < 8) aparecer();
+
+    addEventListener("scroll", alScrollear, { passive: true });
+    addEventListener("resize", () => {
+      if (!masc.hidden) poner(S.x, S.y);
+    });
+  })();
+</script>

@@ -5,6 +5,7 @@ import path from "node:path";
 import Base from "../layouts/Base.astro";
 import Sprite from "../components/Sprite.astro";
 import Escritorio from "../components/Escritorio.astro";
+import Mascota from "../components/Mascota.astro";
 
 // El peso se lee del archivo real en tiempo de build: escrito a mano quedaria
 // desactualizado en cuanto cambie el paquete.
@@ -480,6 +481,9 @@ const pasos = [
       <span class="mini">Astro + Tailwind · Python + Rust</span>
     </div>
   </footer>
+
+  <!-- el bichito suelto: se escapa de la demo y te sigue por la pagina -->
+  <Mascota />
 </Base>
 
 <script>
