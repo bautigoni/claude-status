@@ -11,6 +11,10 @@ está esperando no sirve de nada: lo que necesitás es saber **cuál**.
 - **Cada uno se mueve por separado** y se acuerda de dónde lo dejaste. La
   posición se guarda **por proyecto**, así que la próxima sesión de ese proyecto
   nace en el mismo lugar.
+- **O todos juntos**: arrastrá con **Ctrl** apretado y se mueve la banda entera
+  sin perder las distancias (si preferís que sea siempre así, está el modo
+  *Mover todos juntos* en el menú). Y *Acomodarlos en fila* los vuelve a alinear
+  cuando quedaron desparramados.
 - **Solo el que te espera salta al centro.** Si saltaran todos te taparían la
   pantalla.
 - **Podés esconder uno solo** (botón derecho → *Ocultar &lt;proyecto&gt;*) y

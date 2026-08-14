@@ -29,6 +29,8 @@ DEFAULTS = {
     # tamano de los bichitos: auto | grande | mediano | chico. En automatico se
     # achican solos cuando hay varias sesiones abiertas
     "tamano": "auto",
+    # arrastrar uno los arrastra a todos (o mantener Ctrl mientras arrastras)
+    "mover_juntos": False,
     "voice_script": "",       # .ps1 que habla (lo pone el instalador)
     # {proyecto} se reemplaza por el nombre de la carpeta del proyecto
     "msg_done": "El proyecto {proyecto} terminó",

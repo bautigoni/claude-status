@@ -12,8 +12,10 @@ por pixel: con la transparencia normal de tkinter (-transparentcolor) los bordes
 suavizados del sprite quedarian con un halo del color de fondo.
 
   arrastrar con el boton izquierdo  -> mover ese bichito (se guarda)
+  arrastrar con Ctrl                -> moverlos a todos juntos
   click                             -> traer al frente esa terminal
-  boton derecho                     -> menu (tamano, ocultar este, salir)
+  boton derecho                     -> menu (tamano, mover todos juntos,
+                                      acomodarlos en fila, ocultar este, salir)
 """
 import ctypes
 import json
@@ -175,12 +177,18 @@ def premultiply(img):
                                 ImageChops.multiply(b, a), a))
 
 
+def limites():
+    """El escritorio entero, contando todos los monitores (el de la izquierda
+    tiene x negativa)."""
+    return (user32.GetSystemMetrics(SM_XVIRTUALSCREEN),
+            user32.GetSystemMetrics(SM_YVIRTUALSCREEN),
+            user32.GetSystemMetrics(SM_CXVIRTUALSCREEN),
+            user32.GetSystemMetrics(SM_CYVIRTUALSCREEN))
+
+
 def acotar(x, y, w, h):
-    """Deja una ventana adentro del escritorio, contando todos los monitores."""
-    vx = user32.GetSystemMetrics(SM_XVIRTUALSCREEN)
-    vy = user32.GetSystemMetrics(SM_YVIRTUALSCREEN)
-    vw = user32.GetSystemMetrics(SM_CXVIRTUALSCREEN)
-    vh = user32.GetSystemMetrics(SM_CYVIRTUALSCREEN)
+    """Deja una ventana adentro del escritorio."""
+    vx, vy, vw, vh = limites()
     return (min(max(x, vx), vx + vw - w), min(max(y, vy), vy + vh - h))
 
 
@@ -418,6 +426,11 @@ class Mini:
         self._drag = (e.x_root - self.x, e.y_root - self.y)
         self._press = (e.x_root, e.y_root)
         self._moved = False
+        # con Ctrl apretado -o con el modo prendido en el menu- se arrastra la
+        # banda entera, conservando las distancias entre ellos
+        self._grupo = bool(e.state & 0x0004) or bool(self.app.cfg.get("mover_juntos"))
+        self._inicio = ({m.sid: m.home for m in self.app.minis.values()}
+                        if self._grupo else None)
 
     def drag_move(self, e):
         if not self._drag:
@@ -429,6 +442,27 @@ class Mini:
                     and abs(e.y_root - self._press[1]) < ARRASTRE_MIN):
                 return
             self._moved = True
+        if self._grupo:
+            dx = e.x_root - self._press[0]
+            dy = e.y_root - self._press[1]
+            # el borde frena a la banda entera y no a cada uno por su cuenta: si
+            # se acotara de a uno, el que topa se queda y el grupo se deforma
+            vx, vy, vw, vh = limites()
+            for m in self.app.minis.values():
+                ix, iy = self._inicio.get(m.sid, m.home)
+                dx = min(max(dx, vx - ix), vx + vw - m.ww - ix)
+                dy = min(max(dy, vy - iy), vy + vh - m.wh - iy)
+            for m in self.app.minis.values():
+                ix, iy = self._inicio.get(m.sid, m.home)
+                m.x, m.y = ix + dx, iy + dy
+                m.fx, m.fy = float(m.x), float(m.y)
+                m.home = (m.x, m.y)
+                m.pinned = True
+                if m._cache[1] is not None:
+                    m.layer.blit(m._cache[1], m.x, m.y)
+                else:
+                    m.render()
+            return
         self.x = e.x_root - self._drag[0]
         self.y = e.y_root - self._drag[1]
         self.fx, self.fy = float(self.x), float(self.y)
@@ -442,13 +476,20 @@ class Mini:
 
     def drag_end(self, e):
         """Si lo moviste, se guarda donde quedo (por proyecto, asi la proxima
-        sesion de ese proyecto nace ahi). Si fue un click limpio, te lleva a la
-        terminal de ESTA sesion."""
+        sesion de ese proyecto nace ahi); si venias arrastrando el grupo, se
+        guardan todos. Si fue un click limpio, te lleva a la terminal de ESTA
+        sesion."""
         self._drag = None
-        if self._moved:
-            self.app.guardar_posicion(self.proyecto, self.home)
-        else:
+        if not self._moved:
             self.focus()
+            return
+        if self._grupo:
+            for m in self.app.minis.values():
+                self.app.lugares[m.proyecto] = {"x": int(m.home[0]), "y": int(m.home[1])}
+            self.app.base = (int(self.home[0]), int(self.home[1]))
+            self.app.guardar_lugares()
+        else:
+            self.app.guardar_posicion(self.proyecto, self.home)
 
     def focus(self):
         """Trae al frente la ventana de esta sesion.
@@ -601,31 +642,67 @@ class Bichito:
 
     # --- menus ---
     def armar_menu(self):
+        """El menu se arma una vez; los indices se guardan porque las etiquetas
+        cambian segun a que bichito le hiciste click."""
         for nombre in ("auto", "grande", "mediano", "chico"):
             self.menu_tam.add_command(
                 label=nombre.capitalize(),
                 command=lambda n=nombre: self.set_cfg("tamano", n))
-        self.menu.add_command(label="Ir a esta terminal",
-                              command=lambda: self.objetivo and self.objetivo.focus())
-        self.menu.add_command(label="Abrir panel", command=self.open_panel)
+        self.var_juntos = tk.BooleanVar(value=bool(self.cfg.get("mover_juntos")))
+        self.idx = {}
+
+        def agregar(clave, *args, **kw):
+            self.menu.add_command(*args, **kw)
+            self.idx[clave] = self.menu.index("end")
+
+        agregar("terminal", label="Ir a esta terminal",
+                command=lambda: self.objetivo and self.objetivo.focus())
+        agregar("panel", label="Abrir panel", command=self.open_panel)
         self.menu.add_cascade(label="Tamano", menu=self.menu_tam)
-        self.menu.add_command(label="Siempre encima", command=self.toggle_top)
+        agregar("encima", label="Siempre encima", command=self.toggle_top)
         self.menu.add_separator()
-        self.menu.add_command(label="Ocultar este", command=self.ocultar_este)
-        self.menu.add_command(label="Mostrar todos", command=self.mostrar_todos)
-        self.menu.add_command(label="Ocultar todos", command=self.toggle_pet)
-        self.menu.add_command(label="Salir del todo", command=self.quit_all)
+        # arrastrar uno lleva a todos, sin perder las distancias entre ellos
+        self.menu.add_checkbutton(label="Mover todos juntos", variable=self.var_juntos,
+                                  command=self.toggle_juntos)
+        self.idx["juntos"] = self.menu.index("end")
+        agregar("fila", label="Acomodarlos en fila", command=self.acomodar_fila)
+        self.menu.add_separator()
+        agregar("ocultar", label="Ocultar este", command=self.ocultar_este)
+        agregar("mostrar", label="Mostrar todos", command=self.mostrar_todos)
+        agregar("apagar", label="Ocultar todos", command=self.toggle_pet)
+        agregar("salir", label="Salir del todo", command=self.quit_all)
 
     def abrir_menu(self, mini, e):
         self.objetivo = mini
-        self.menu.entryconfigure(0, label=f"Ir a la terminal de {mini.proyecto}")
-        self.menu.entryconfigure(3, label="Siempre encima  " + ("si" if self.topmost else "no"))
-        self.menu.entryconfigure(5, label=f"Ocultar {mini.proyecto}")
-        self.menu.entryconfigure(6, state="normal" if self.ocultos else "disabled")
+        self.var_juntos.set(bool(self.cfg.get("mover_juntos")))
+        self.menu.entryconfigure(self.idx["terminal"],
+                                 label=f"Ir a la terminal de {mini.proyecto}")
+        self.menu.entryconfigure(self.idx["encima"],
+                                 label="Siempre encima  " + ("si" if self.topmost else "no"))
+        self.menu.entryconfigure(self.idx["ocultar"], label=f"Ocultar {mini.proyecto}")
+        self.menu.entryconfigure(self.idx["mostrar"],
+                                 state="normal" if self.ocultos else "disabled")
+        self.menu.entryconfigure(self.idx["fila"],
+                                 state="normal" if len(self.minis) > 1 else "disabled")
         try:
             self.menu.tk_popup(e.x_root, e.y_root)
         finally:
             self.menu.grab_release()  # si no, el menu se puede comer el mouse
+
+    def toggle_juntos(self):
+        self.set_cfg("mover_juntos", bool(self.var_juntos.get()))
+
+    def acomodar_fila(self):
+        """Los pone a todos en fila desde el ancla, por si quedaron desparramados."""
+        for i, sid in enumerate(self.orden):
+            mini = self.minis.get(sid)
+            if not mini:
+                continue
+            x, y = acotar(*self.lugar_por_defecto(i, mini.ww), mini.ww, mini.wh)
+            mini.home = (x, y)
+            mini.pinned = False
+            self.lugares[mini.proyecto] = {"x": x, "y": y}
+        self.guardar_lugares()
 
     def set_cfg(self, clave, valor):
         self.cfg = core.save_config({**core.load_config(), clave: valor})

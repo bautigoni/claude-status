@@ -101,6 +101,7 @@ const toggles = [
         <li><button role="menuitem" data-menu-item="panel">Abrir panel</button></li>
         <li><button role="menuitem" data-menu-item="encima">Siempre encima <span data-menu-encima>sí</span></button></li>
         <li class="menu__raya" role="separator"></li>
+        <li><button role="menuitem" data-menu-item="juntos">Mover todos juntos <span data-menu-juntos>no</span></button></li>
         <li><button role="menuitem" data-menu-item="ocultar">Ocultar este</button></li>
         <li><button role="menuitem" data-menu-item="mostrar">Mostrar todos</button></li>
       </ul>
@@ -128,8 +129,8 @@ const toggles = [
   </div>
 
   <p class="esc__pie">
-    Arrastralos por separado · clickeá uno para ir a su terminal · botón derecho
-    para el menú
+    Arrastralos por separado (o con Ctrl, a todos juntos) · clickeá uno para ir
+    a su terminal · botón derecho para el menú
   </p>
 </div>
 
@@ -663,7 +664,8 @@ const toggles = [
     const quieto = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const TEXTO = { cocinando: "Cocinando", esperando: "Te espera", termino: "Listo", dormido: "" };
-    const cfg = { pet: true, timer: true, voz: false, centrar: true, encima: true, plan5: true, planSem: true };
+    const cfg = { pet: true, timer: true, voz: false, centrar: true, encima: true,
+                  plan5: true, planSem: true, juntos: false };
 
     const fmt = (s) => {
       s = Math.max(0, Math.floor(s));
@@ -931,12 +933,17 @@ const toggles = [
       let id = null;
       let ini = null;
       let movido = false;
+      let grupo = false;
+      let inicio = null;
       el.addEventListener("pointerdown", (e) => {
         if (e.button === 2) return;
         id = e.pointerId;
         movido = false;
         const r = el.getBoundingClientRect();
         const p = pantalla.getBoundingClientRect();
+        // con Ctrl (o el modo del menú) se arrastran todos juntos, como en la app
+        grupo = !!bicho && (e.ctrlKey || e.metaKey || cfg.juntos);
+        inicio = grupo ? Object.fromEntries(bichos.map((b) => [b.id, { ...b.home }])) : null;
         ini = { dx: e.clientX - r.left, dy: e.clientY - r.top, px: p.left, py: p.top, x: e.clientX, y: e.clientY };
         try {
           el.setPointerCapture(id);
@@ -953,7 +960,16 @@ const toggles = [
         }
         const x = e.clientX - ini.px - ini.dx;
         const y = e.clientY - ini.py - ini.dy;
-        if (bicho) {
+        if (grupo) {
+          const dx = e.clientX - ini.x;
+          const dy = e.clientY - ini.y;
+          bichos.forEach((b) => {
+            const p0 = inicio[b.id];
+            b.poner(p0.x + dx, p0.y + dy);
+            b.home = { ...b.pos };
+            b.pinned = true;
+          });
+        } else if (bicho) {
           bicho.poner(x, y);
           bicho.home = { ...bicho.pos };
           bicho.pinned = true;   // arrastrar gana: el centro deja de tironear
@@ -1010,6 +1026,7 @@ const toggles = [
       menu.style.top = `${Math.min(e.clientY - p.top, p.height - 180)}px`;
       menu.hidden = false;
       esc.querySelector("[data-menu-encima]").textContent = cfg.encima ? "sí" : "no";
+      esc.querySelector("[data-menu-juntos]").textContent = cfg.juntos ? "sí" : "no";
       esc.querySelector('[data-menu-item="ocultar"]').textContent = `Ocultar ${bicho.proyecto}`;
     }
     document.addEventListener("pointerdown", (e) => {
@@ -1023,6 +1040,7 @@ const toggles = [
       if (que === "terminal" && objetivo) irALaTerminal(objetivo);
       if (que === "panel") abrirPanel();
       if (que === "encima") aplicar("encima", !cfg.encima);
+      if (que === "juntos") cfg.juntos = !cfg.juntos;
       if (que === "ocultar" && objetivo) {
         objetivo.oculto = true;
         objetivo.aplicarVisibilidad();
