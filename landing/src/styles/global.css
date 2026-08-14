@@ -1,18 +1,46 @@
 @import "tailwindcss";
 
-/* Paleta del bichito: la arcilla de Claude sobre un fondo calido y oscuro.
-   Se declara como tema de Tailwind v4, asi queda disponible como bg-clay,
-   text-ember, etc. en todo el sitio. */
+/* ==========================================================================
+   Tipografia. Todo local: la pagina no le pide nada a ningun tercero.
+
+   Pixelify Sans  -> titulos, etiquetas y el texto que el bichito se dibuja
+                     encima. Es pixel art como el sprite, pero con minusculas
+                     de verdad, asi que un titulo largo en castellano se sigue
+                     leyendo. (Se probo Silkscreen, que es un bitmap mas exacto,
+                     pero su C se lee como O: "Claude Code" quedaba "Olaude
+                     Oode". Un tipo de letra que no se lee no sirve.)
+   Segoe UI       -> texto corrido. Es la de Windows y la app es de Windows:
+                     no hay razon para descargar otra.
+   ========================================================================== */
+@font-face {
+  font-family: "Pixelify Sans";
+  src: url("/fonts/pixelify-sans.woff2") format("woff2");
+  font-weight: 400 700;
+  font-display: swap;
+}
+
 @theme {
-  --color-ink: #17140f;
-  --color-ink-soft: #211c16;
-  --color-ink-line: #322a21;
+  /* el escritorio: negro calido, no gris */
+  --color-ink: #16130f;
+  --color-ink-soft: #1f1a15;
+  --color-ink-line: #332b22;
+
+  /* la ventana de la terminal: frio, para que el escritorio no sea de un solo
+     color y las dos ventanas se distingan de una */
+  --color-slate: #12151a;
+  --color-slate-soft: #191d24;
+  --color-slate-line: #2b323c;
+
+  /* el bichito */
   --color-clay: #d97757;
   --color-clay-soft: #e08a6a;
+  --color-tan: #d9aa78;
+  --color-ember: #f0b429;
   --color-cream: #f2e9df;
   --color-ash: #8c7f72;
-  --color-ember: #f0b429;
 
+  --font-display: "Pixelify Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-pixel: "Pixelify Sans", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Cascadia Code", "Consolas", ui-monospace, monospace;
 }
@@ -29,16 +57,57 @@
     background: var(--color-clay);
     color: var(--color-ink);
   }
+  :focus-visible {
+    outline: 2px solid var(--color-clay);
+    outline-offset: 2px;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
 }
 
+/* el arte es pixel art: sin esto el navegador lo interpola y lo emborrona */
 @utility pixel {
-  /* el arte es pixel art: sin esto el navegador lo interpola y lo emborrona */
   image-rendering: pixelated;
 }
 
-/* Animacion de sprites: la tira se corre un frame por paso. El ancho total va
-   por variable para que cada estado (que tiene distinta cantidad de frames)
-   reutilice la misma regla. */
+/* Rotulo con la voz del bichito: la misma pixel font que los titulos.
+   Sin mayusculas: en versalita, la C de esta familia se lee como O y "Claude
+   Code" terminaba diciendo "Olaude Oode". */
+@utility hud {
+  font-family: var(--font-pixel);
+  font-weight: 600;
+  font-size: 0.875rem;
+  letter-spacing: 0.04em;
+}
+
+/* Rotulo de interfaz: chiquito, funcional y sin personalidad, para las cosas
+   que solo tienen que leerse (titulos de ventana, reloj, pesos, milisegundos). */
+@utility mini {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+}
+
+/* La que se dibuja el bichito encima: contorno oscuro para que se lea contra
+   cualquier fondo, igual que el que dibuja la app con PIL. */
+@utility hud-sombra {
+  text-shadow:
+    1px 0 0 #0f0c09,
+    -1px 0 0 #0f0c09,
+    0 1px 0 #0f0c09,
+    0 -1px 0 #0f0c09,
+    1px 1px 0 #0f0c09,
+    -1px 1px 0 #0f0c09;
+}
+
+/* --------------------------------------------------------------- sprites --
+   La tira se corre un frame por paso. El ancho total va por variable para que
+   cada estado (que tiene distinta cantidad de frames) reuse la misma regla. */
 @keyframes sprite-run {
   from {
     background-position: 0 0;
@@ -54,9 +123,41 @@
   animation: sprite-run var(--dur, 2s) steps(var(--frames)) infinite;
 }
 
+/* el festejo se juega una sola vez y se queda en el ultimo cuadro, igual que
+   en la app */
+.sprite--once {
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+
+/* --------------------------------------------------------- aparecer al leer
+   El escondido cuelga de .js, que lo pone un script en el <head>: si el
+   JavaScript no corre, el texto se ve igual. Y va con transicion y no con
+   animacion a proposito: una animacion que no arranca deja la seccion entera
+   invisible, y ningun efecto vale eso. */
+.js .asoma {
+  opacity: 0;
+  transform: translateY(12px);
+}
+.asoma {
+  transition:
+    opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.js .asoma.visible {
+  opacity: 1;
+  transform: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sprite {
     animation: none;
+  }
+  .js .asoma,
+  .js .asoma.visible {
+    opacity: 1;
+    transform: none;
+    transition: none;
   }
   html {
     scroll-behavior: auto;

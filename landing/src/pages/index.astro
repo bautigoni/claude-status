@@ -4,6 +4,7 @@ import path from "node:path";
 
 import Base from "../layouts/Base.astro";
 import Sprite from "../components/Sprite.astro";
+import Escritorio from "../components/Escritorio.astro";
 
 // El peso se lee del archivo real en tiempo de build: escrito a mano quedaria
 // desactualizado en cuanto cambie el paquete.
@@ -16,26 +17,58 @@ const descarga = {
     : "—",
 };
 
+// gesto -> que pasa. Es la seccion que el usuario puede ir probando arriba.
+const gestos = [
+  {
+    gesto: "Arrastrar",
+    que: "Lo movés y ahí se queda para siempre. Si lo arrastrás mientras te espera, el centro deja de tironear hasta la próxima pregunta.",
+  },
+  {
+    gesto: "Click",
+    que: "Te lleva a la terminal de esa sesión: la ventana pasa al frente, aunque estuviera minimizada. Con dos Claude abiertos, te lleva al que te está esperando.",
+  },
+  {
+    gesto: "Botón derecho",
+    que: "El menú: abrir el panel, siempre encima, esconderlo o salir del todo.",
+  },
+  {
+    gesto: "Bandeja",
+    que: "El ícono del sistema queda vivo aunque escondas la ventanita. Desde ahí lo volvés a mostrar.",
+  },
+  {
+    gesto: "Panel",
+    que: "Siete interruptores que tienen efecto al instante, sin reiniciar Claude Code: la app los relee en cada llamada.",
+  },
+  {
+    gesto: "Voz",
+    que: "Te habla cuando termina y cuando necesita algo tuyo. Los dos mensajes se editan desde el panel.",
+  },
+];
+
 const estados = [
   {
     state: "cocinando" as const,
     titulo: "Cocinando",
-    texto: "Mientras Claude trabaja, el bichito saltea un panqueque y te lleva el cronómetro del turno.",
+    texto:
+      "Mientras Claude trabaja, saltea un panqueque y te lleva el cronómetro del turno.",
   },
   {
     state: "esperando" as const,
     titulo: "Te espera",
-    texto: "Si te hace una pregunta o pide permiso, salta al centro de la pantalla y te avisa por voz.",
+    texto:
+      "Si te hace una pregunta o pide permiso, salta al centro de la pantalla y te avisa por voz.",
   },
   {
     state: "termino" as const,
     titulo: "Listo",
-    texto: "Cuando termina, festeja con el tiempo final congelado. Ese es el momento que no te querés perder.",
+    texto:
+      "Cuando termina, festeja con el tiempo final congelado. Ese es el momento que no te querés perder.",
   },
   {
     state: "dormido" as const,
     titulo: "Dormido",
-    texto: "Después del festejo se acomoda y se duerme, sin robarte atención hasta el próximo turno.",
+    texto:
+      "Después del festejo se acomoda y se duerme, sin robarte atención hasta el próximo turno.",
   },
 ];
 
@@ -46,198 +79,224 @@ const numeros = [
 ];
 
 const pasos = [
-  { n: "01", t: "Descargás y descomprimís", d: "Adentro está Bichito.exe. No necesitás tener Python ni Rust instalados." },
-  { n: "02", t: "Abrís Bichito.exe y tocás «Instalar en Claude Code»", d: "Se copia a %LOCALAPPDATA%, deja un acceso directo y escribe los hooks." },
-  { n: "03", t: "Listo", d: "Aplica al Desktop, a cmd y a PowerShell de una: los tres leen el mismo settings.json." },
+  {
+    t: "Descargás y descomprimís",
+    d: "Adentro está Bichito.exe. No necesitás Python ni Rust.",
+  },
+  {
+    t: "Abrís Bichito.exe y tocás «Instalar en Claude Code»",
+    d: "Se copia a %LOCALAPPDATA%, deja un acceso directo en Inicio y escribe los hooks.",
+  },
+  {
+    t: "Listo",
+    d: "Vale para el Desktop, cmd y PowerShell de una: los tres leen el mismo settings.json.",
+  },
 ];
 ---
 
 <Base
   title="Bichito — la mascota que te avisa cuándo Claude Code terminó"
-  description="Una mascota de escritorio para Claude Code: te muestra si está trabajando, si te está esperando o si ya terminó, y el % de uso de tu plan, sin que mires la terminal."
+  description="Una mascota de escritorio para Claude Code: te muestra si está trabajando, si te está esperando o si ya terminó, te lleva a la terminal de un click y te muestra cuánto te queda del plan."
 >
-  <!-- ================= HERO ================= -->
-  <header class="relative overflow-hidden">
-    <div
-      class="pointer-events-none absolute inset-x-0 -top-40 h-[36rem] opacity-60 blur-3xl"
-      style="background: radial-gradient(45% 50% at 50% 50%, #d9775733 0%, transparent 70%)"
-      aria-hidden="true"
-    >
-    </div>
-
-    <div class="relative mx-auto max-w-4xl px-6 pt-14 pb-20 text-center sm:pt-20">
-      <Sprite state="cocinando" height={190} class="mx-auto" />
-
-      <p
-        class="mt-6 inline-flex items-center gap-2 rounded-full border border-ink-line bg-ink-soft px-3.5 py-1.5 text-xs text-ash"
-      >
-        <span class="size-1.5 rounded-full bg-clay"></span>
-        Para Claude Code en Windows
-      </p>
-
-      <h1
-        class="mt-5 text-4xl font-semibold tracking-tight text-balance sm:text-6xl"
-      >
-        Sabé cuándo Claude terminó
-        <span class="block text-clay">sin mirar la terminal</span>
-      </h1>
-
-      <p class="mx-auto mt-6 max-w-xl text-lg text-pretty text-ash sm:text-xl">
-        Un bichito que flota en tu escritorio, cocina mientras Claude trabaja y
-        te avisa por voz cuando termina o cuando necesita algo tuyo. Y si querés,
-        te muestra el % que llevas del plan.
-      </p>
-
-      <div class="mt-9 flex flex-wrap items-center justify-center gap-3">
+  <!-- ================= NAV ================= -->
+  <nav
+    class="sticky top-0 z-50 border-b border-ink-line/70 bg-ink/85 backdrop-blur"
+  >
+    <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
+      <a href="#" class="flex items-center gap-2.5">
+        <img src="/favicon.png" alt="" class="pixel size-6" width="24" height="24" />
+        <span class="font-display text-lg">bichito</span>
+      </a>
+      <div class="flex items-center gap-5">
+        <a
+          href="#como-funciona"
+          class="hidden text-sm text-ash transition hover:text-cream sm:block"
+          >Cómo está hecho</a
+        >
         <a
           href={descarga.href}
           download
-          class="group inline-flex items-center gap-2.5 rounded-xl bg-clay px-6 py-3 font-semibold text-ink transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay"
+          class="rounded-lg bg-clay px-4 py-1.5 text-sm font-semibold text-ink transition hover:brightness-110"
+          >Descargar</a
         >
-          <svg
-            class="size-4 transition group-hover:translate-y-0.5"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M8 1.5v9" />
-            <path d="M4.5 7.5 8 11l3.5-3.5" />
-            <path d="M2 13.5h12" />
-          </svg>
-          Descargar para Windows
-        </a>
-        <a
-          href="#como-funciona"
-          class="rounded-xl border border-ink-line px-6 py-3 font-medium text-cream transition hover:border-clay hover:text-clay-soft"
-        >
-          Cómo está hecho
-        </a>
       </div>
+    </div>
+  </nav>
 
-      <p class="mt-4 font-mono text-xs text-ash">
+  <!-- ================= HERO ================= -->
+  <header class="mx-auto max-w-6xl px-6 pt-12 pb-6 sm:pt-16">
+    <p class="hud text-clay">Para Claude Code en Windows</p>
+    <h1 class="mt-4 max-w-3xl text-4xl leading-[1.05] text-balance sm:text-6xl">
+      Sabé qué está haciendo Claude
+      <span class="text-clay">sin mirar la terminal</span>
+    </h1>
+    <p class="mt-5 max-w-xl text-lg text-pretty text-ash">
+      Una mascota que vive en tu escritorio: cocina mientras Claude trabaja,
+      salta al centro cuando te necesita y te habla cuando termina. Está acá
+      abajo, andá manoteándola.
+    </p>
+
+    <div class="mt-8">
+      <Escritorio />
+    </div>
+
+    <div class="mt-8 flex flex-wrap items-center gap-4">
+      <a
+        href={descarga.href}
+        download
+        class="group inline-flex items-center gap-2.5 rounded-xl bg-clay px-6 py-3 font-semibold text-ink transition hover:brightness-110"
+      >
+        <svg
+          class="size-4 transition group-hover:translate-y-0.5"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M8 1.5v9"></path>
+          <path d="M4.5 7.5 8 11l3.5-3.5"></path>
+          <path d="M2 13.5h12"></path>
+        </svg>
+        Descargar para Windows
+      </a>
+      <p class="mini text-ash">
         {descarga.nombre} · {descarga.peso} · Windows 10/11 · sin dependencias
       </p>
     </div>
   </header>
 
-  <!-- ================= ESTADOS ================= -->
-  <section class="mx-auto max-w-6xl px-6 py-20" aria-labelledby="estados">
-    <h2 id="estados" class="text-3xl font-semibold tracking-tight sm:text-4xl">
-      Cuatro estados, de un vistazo
+  <!-- ================= GESTOS ================= -->
+  <section class="mx-auto max-w-6xl px-6 py-20" aria-labelledby="gestos">
+    <p class="hud text-clay">Todo lo que le podés hacer</p>
+    <h2 id="gestos" class="mt-3 text-3xl sm:text-4xl">
+      Un gesto, una respuesta
     </h2>
-    <p class="mt-3 max-w-2xl text-ash">
-      No hay que leer nada. La pose del bichito ya te dice en qué anda.
-    </p>
 
-    <ul class="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+    <dl class="mt-10 grid gap-x-10 gap-y-6 sm:grid-cols-2">
       {
-        estados.map(({ state, titulo, texto }) => (
-          <li class="group rounded-2xl border border-ink-line bg-ink-soft p-5 transition hover:border-clay/50">
-            <div class="flex h-32 items-end justify-center">
-              <Sprite state={state} height={120} />
-            </div>
-            <h3 class="mt-4 font-semibold text-clay">{titulo}</h3>
-            <p class="mt-1.5 text-sm leading-relaxed text-ash">{texto}</p>
-          </li>
+        gestos.map(({ gesto, que }) => (
+          <div class="asoma border-t border-ink-line pt-4">
+            <dt class="hud text-cream">{gesto}</dt>
+            <dd class="mt-2 text-sm leading-relaxed text-ash">{que}</dd>
+          </div>
         ))
       }
-    </ul>
+    </dl>
+  </section>
+
+  <!-- ================= ESTADOS ================= -->
+  <section
+    class="border-y border-ink-line bg-ink-soft/40"
+    aria-labelledby="estados"
+  >
+    <div class="mx-auto max-w-6xl px-6 py-20">
+      <p class="hud text-clay">Cuatro poses</p>
+      <h2 id="estados" class="mt-3 text-3xl sm:text-4xl">
+        No hay que leer nada
+      </h2>
+      <p class="mt-3 max-w-2xl text-ash">
+        La pose ya te dice en qué anda. El texto de abajo es el detalle, no el
+        mensaje.
+      </p>
+
+      <ul class="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        {
+          estados.map(({ state, titulo, texto }) => (
+            <li class="asoma rounded-2xl border border-ink-line bg-ink p-5 transition hover:border-clay/50">
+              <div class="flex h-32 items-end justify-center">
+                <Sprite state={state} height={120} />
+              </div>
+              <h3 class="hud mt-4 text-clay">{titulo}</h3>
+              <p class="mt-2 text-sm leading-relaxed text-ash">{texto}</p>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
   </section>
 
   <!-- ================= PLAN ================= -->
   <section class="mx-auto max-w-6xl px-6 py-20" aria-labelledby="plan">
     <div class="grid gap-12 lg:grid-cols-2 lg:items-center">
       <div>
-        <h2 id="plan" class="text-3xl font-semibold tracking-tight sm:text-4xl">
-          Sabé cuánto te queda del plan
+        <p class="hud text-clay">El plan</p>
+        <h2 id="plan" class="mt-3 text-3xl sm:text-4xl">
+          Cuánto te queda, sin abrir nada
         </h2>
         <p class="mt-4 leading-relaxed text-ash">
-          Dos interruptores independientes, apagados por defecto. Prendé el que
-          te sirva: <strong class="text-cream">sesión 5h</strong>,
-          <strong class="text-cream">semanal</strong>, o los dos. Se muestran en
-          una línea arriba del cronómetro del bichito, y en tarjetas grandes en
-          el panel.
+          Dos interruptores independientes, apagados de fábrica. Prendé el que
+          te sirva —<strong class="text-cream">sesión de 5h</strong>,
+          <strong class="text-cream">semanal</strong>, o los dos— y el número
+          aparece en su propia franja debajo del bichito, y en tarjetas grandes
+          en el panel.
         </p>
         <p class="mt-4 leading-relaxed text-ash">
-          Lee el token de
-          <code class="font-mono text-clay">~/.claude/.credentials.json</code> —
-          el mismo que usa <code class="font-mono text-clay">/usage</code> de
-          Claude Code. No consulta endpoints no oficiales.
+          Lee tu token de <code class="font-mono text-clay"
+            >~/.claude/.credentials.json</code
+          >, el mismo que usa <code class="font-mono text-clay">/usage</code>.
+          Nada de endpoints no oficiales.
         </p>
-        <ul class="mt-6 space-y-2.5 text-sm text-ash">
+        <ul class="mt-6 space-y-3 text-sm text-ash">
           <li class="flex gap-3">
             <span class="mt-1.5 size-1.5 shrink-0 rounded-full bg-clay"></span>
             <span>
               <strong class="text-cream">Cuesta 1 token de Haiku</strong> por
-              lectura. La API devuelve el % en los headers
-              <code class="font-mono text-clay">anthropic-ratelimit-unified-*</code>.
+              lectura: el porcentaje viene en los headers
+              <code class="font-mono text-clay"
+                >anthropic-ratelimit-unified-*</code
+              >.
             </span>
           </li>
           <li class="flex gap-3">
             <span class="mt-1.5 size-1.5 shrink-0 rounded-full bg-clay"></span>
-            <span>
-              Polling cada <strong class="text-cream">60 segundos</strong>;
-              panel y mascota leen del mismo archivo.
-            </span>
+            <span
+              >Se relee cada <strong class="text-cream">60 segundos</strong>;
+              panel y mascota leen del mismo archivo.</span
+            >
           </li>
           <li class="flex gap-3">
             <span class="mt-1.5 size-1.5 shrink-0 rounded-full bg-clay"></span>
-            <span>
-              Cambia de color al <strong class="text-cream">70%</strong>
-              (warn) y al <strong class="text-cream">90%</strong> (crit).
-            </span>
+            <span
+              >Cambia de color al <strong class="text-cream">70%</strong> y al
+              <strong class="text-cream">90%</strong>.</span
+            >
           </li>
         </ul>
       </div>
 
       <div class="grid gap-4 sm:grid-cols-2">
         <div class="rounded-2xl border border-ink-line bg-ink-soft p-5">
-          <div class="font-mono text-[10px] font-semibold uppercase tracking-[.08em] text-ash">
-            Sesion 5h
-          </div>
-          <div class="mt-2 text-4xl font-semibold tracking-tight text-clay">
-            45%
-          </div>
+          <div class="hud text-ash">Sesión 5h</div>
+          <div class="mt-2 font-display text-4xl text-clay">24%</div>
           <div class="mt-1 text-xs text-ash">Reinicia en 2h 14m</div>
           <div class="mt-4 h-1.5 overflow-hidden rounded-full bg-ink">
-            <div class="h-full w-[45%] rounded-full bg-clay"></div>
+            <div class="h-full w-[24%] rounded-full bg-clay"></div>
           </div>
         </div>
 
         <div class="rounded-2xl border border-ink-line bg-ink-soft p-5">
-          <div class="font-mono text-[10px] font-semibold uppercase tracking-[.08em] text-ash">
-            Semanal
-          </div>
-          <div class="mt-2 text-4xl font-semibold tracking-tight" style="color:#d9a057">
-            78%
-          </div>
+          <div class="hud text-ash">Semanal</div>
+          <div class="mt-2 font-display text-4xl text-tan">78%</div>
           <div class="mt-1 text-xs text-ash">Reinicia en 4d 6h</div>
           <div class="mt-4 h-1.5 overflow-hidden rounded-full bg-ink">
-            <div class="h-full w-[78%] rounded-full" style="background:#d9a057"></div>
+            <div class="h-full w-[78%] rounded-full bg-tan"></div>
           </div>
         </div>
 
-        <div class="rounded-2xl border border-ink-line bg-ink p-5 sm:col-span-2">
-          <div class="flex items-center gap-4">
-            <div class="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-ink-soft">
-              <Sprite state="cocinando" height={56} />
-            </div>
-            <div class="min-w-0 flex-1">
-              <div class="font-mono text-[10px] font-semibold tracking-[.08em]" style="color:#d9a057">
-                5h 45%  sem 78%
-              </div>
-              <div class="mt-1 truncate text-sm text-ash">
-                Cocinando  ·  3m 12s
-              </div>
-            </div>
-          </div>
-          <div class="mt-3 text-[11px] leading-relaxed text-ash">
-            Así se ve en la mascota: el % arriba del label principal, en color
-            del bichito.
+        <div
+          class="flex items-center gap-4 rounded-2xl border border-ink-line bg-ink p-5 sm:col-span-2"
+        >
+          <Sprite state="cocinando" height={72} />
+          <div class="min-w-0">
+            <div class="hud text-cream">Cocinando 3m 12s</div>
+            <div class="hud mt-1 text-tan">5h 24% sem 78%</div>
+            <p class="mt-2 text-xs leading-relaxed text-ash">
+              Así se ve en la mascota: cada línea en su renglón, el uso abajo de
+              todo.
+            </p>
           </div>
         </div>
       </div>
@@ -251,9 +310,8 @@ const pasos = [
     aria-labelledby="como"
   >
     <div class="mx-auto max-w-6xl px-6 py-20">
-      <h2 id="como" class="text-3xl font-semibold tracking-tight sm:text-4xl">
-        Cómo está hecho
-      </h2>
+      <p class="hud text-clay">Por dentro</p>
+      <h2 id="como" class="mt-3 text-3xl sm:text-4xl">Cómo está hecho</h2>
       <p class="mt-3 max-w-2xl text-ash">
         Se engancha a los hooks de Claude Code. Todo lo demás sale de ahí.
       </p>
@@ -261,113 +319,115 @@ const pasos = [
       <div
         class="mt-10 overflow-x-auto rounded-2xl border border-ink-line bg-ink p-6"
       >
-        <pre
-          class="font-mono text-sm leading-7 text-ash"><span class="text-clay">hooks de Claude Code</span>  →  <span class="text-cream">bichito-hook.exe</span>  →  <span class="text-ash">state/&lt;sesión&gt;.json</span>  →  <span class="text-clay">el bichito</span>
+        <pre class="font-mono text-sm leading-7 text-ash"><span class="text-clay">hooks de Claude Code</span>  →  <span class="text-cream">bichito-hook.exe</span>  →  <span class="text-ash">state/&lt;sesión&gt;.json</span>  →  <span class="text-clay">el bichito</span>
                             <span class="text-ember">(Rust, 20 ms)</span>                          <span class="text-ash">(lee cada 250 ms)</span></pre>
       </div>
 
       <div class="mt-10 grid gap-5 md:grid-cols-3">
-        <article class="rounded-2xl border border-ink-line bg-ink p-6">
-          <h3 class="font-semibold text-cream">Tu settings.json se toca una vez</h3>
-          <p class="mt-2 text-sm leading-relaxed text-ash">
-            Los hooks se escriben al instalar y no se vuelven a tocar. Los
-            interruptores viven en la config propia de la app, así prender y
-            apagar cosas es instantáneo y no hay que hacerle cirugía a un
-            archivo que también es tuyo.
+        <article
+          class="asoma rounded-2xl border border-ink-line bg-ink p-6"
+        >
+          <h3 class="hud text-cream">Un aviso no es igual a otro</h3>
+          <p class="mt-3 text-sm leading-relaxed text-ash">
+            Bajo el hook <code class="font-mono text-clay">Notification</code>
+            entra todo junto, así que el aviso se clasifica por su
+            <code class="font-mono text-clay">notification_type</code>: si te
+            piden permiso o te preguntan algo, salta al centro; si lo que pasó
+            fue que terminó un agente en segundo plano, solo te lo dice y no se
+            mueve.
           </p>
         </article>
-        <article class="rounded-2xl border border-ink-line bg-ink p-6">
-          <h3 class="font-semibold text-cream">Alfa real por píxel</h3>
-          <p class="mt-2 text-sm leading-relaxed text-ash">
-            La ventana se dibuja con <code class="font-mono text-clay">UpdateLayeredWindow</code>.
-            Con la transparencia común los bordes suavizados del sprite
+        <article
+          class="asoma rounded-2xl border border-ink-line bg-ink p-6"
+        >
+          <h3 class="hud text-cream">Alfa real por píxel</h3>
+          <p class="mt-3 text-sm leading-relaxed text-ash">
+            La ventana se dibuja con <code class="font-mono text-clay"
+              >UpdateLayeredWindow</code
+            >. Con la transparencia común, los bordes suavizados del sprite
             quedarían con un halo del color de fondo.
           </p>
         </article>
-        <article class="rounded-2xl border border-ink-line bg-ink p-6">
-          <h3 class="font-semibold text-cream">No se queda colgado</h3>
-          <p class="mt-2 text-sm leading-relaxed text-ash">
+        <article
+          class="asoma rounded-2xl border border-ink-line bg-ink p-6"
+        >
+          <h3 class="hud text-cream">No se queda colgado</h3>
+          <p class="mt-3 text-sm leading-relaxed text-ash">
             Si apretás Esc o cerrás la terminal, Claude no avisa que terminó.
-            Por eso hay un latido: sin señal por 15 minutos, el bichito se
-            duerme solo en vez de cocinar para siempre.
+            Por eso hay latido: sin señal por 15 minutos, el bichito se duerme
+            solo en vez de cocinar para siempre.
           </p>
         </article>
       </div>
-    </div>
-  </section>
 
-  <!-- ================= NUMEROS ================= -->
-  <section class="mx-auto max-w-6xl px-6 py-20" aria-labelledby="numeros">
-    <div class="grid gap-12 lg:grid-cols-2 lg:items-center">
-      <div>
-        <h2 id="numeros" class="text-3xl font-semibold tracking-tight sm:text-4xl">
-          Por qué el hook está en Rust
-        </h2>
-        <p class="mt-4 leading-relaxed text-ash">
-          Ese binario corre en <strong class="text-cream">cada llamada a
-          herramienta</strong>, cientos de veces por sesión. La primera versión
-          era un script de Python; empaquetarlo lo volvió cinco veces más lento,
-          así que esa parte —y solo esa— se reescribió en Rust.
-        </p>
-        <p class="mt-4 text-sm text-ash">
-          Mediana de 15 corridas, esperando a que el proceso termine de verdad.
-        </p>
+      <div class="mt-14 grid gap-12 lg:grid-cols-2 lg:items-center">
+        <div>
+          <h3 class="text-2xl sm:text-3xl">Por qué el hook está en Rust</h3>
+          <p class="mt-4 leading-relaxed text-ash">
+            Ese binario corre en <strong class="text-cream"
+              >cada llamada a herramienta</strong
+            >, cientos de veces por sesión. La primera versión era un script de
+            Python; empaquetarlo lo volvió cinco veces más lento, así que esa
+            parte —y solo esa— se reescribió en Rust.
+          </p>
+          <p class="mt-4 text-sm text-ash">
+            Mediana de 15 corridas, esperando a que el proceso termine de
+            verdad.
+          </p>
+        </div>
+
+        <ul class="space-y-5">
+          {
+            numeros.map(({ que, ms, ancho, destacado }) => (
+              <li>
+                <div class="flex items-baseline justify-between gap-4">
+                  <span
+                    class:list={[
+                      "text-sm",
+                      destacado ? "font-semibold text-clay" : "text-ash",
+                    ]}
+                  >
+                    {que}
+                  </span>
+                  <span
+                    class:list={[
+                      "mini tabular-nums",
+                      destacado ? "text-clay" : "text-ash",
+                    ]}
+                  >
+                    {ms} ms
+                  </span>
+                </div>
+                <div class="mt-2 h-2 overflow-hidden rounded-full bg-ink">
+                  <div
+                    class:list={[
+                      "h-full rounded-full",
+                      destacado ? "bg-clay" : "bg-ink-line",
+                    ]}
+                    style={`width:${ancho}%`}
+                  />
+                </div>
+              </li>
+            ))
+          }
+        </ul>
       </div>
-
-      <ul class="space-y-5">
-        {
-          numeros.map(({ que, ms, ancho, destacado }) => (
-            <li>
-              <div class="flex items-baseline justify-between gap-4">
-                <span
-                  class:list={[
-                    "text-sm",
-                    destacado ? "font-semibold text-clay" : "text-ash",
-                  ]}
-                >
-                  {que}
-                </span>
-                <span
-                  class:list={[
-                    "font-mono text-sm tabular-nums",
-                    destacado ? "text-clay" : "text-ash",
-                  ]}
-                >
-                  {ms} ms
-                </span>
-              </div>
-              <div class="mt-2 h-2 overflow-hidden rounded-full bg-ink-soft">
-                <div
-                  class:list={[
-                    "h-full rounded-full",
-                    destacado ? "bg-clay" : "bg-ink-line",
-                  ]}
-                  style={`width:${ancho}%`}
-                />
-              </div>
-            </li>
-          ))
-        }
-      </ul>
     </div>
   </section>
 
   <!-- ================= INSTALAR ================= -->
-  <section
-    id="instalar"
-    class="border-t border-ink-line bg-ink-soft/40"
-    aria-labelledby="inst"
-  >
+  <section id="instalar" aria-labelledby="inst">
     <div class="mx-auto max-w-4xl px-6 py-20">
-      <h2 id="inst" class="text-3xl font-semibold tracking-tight sm:text-4xl">
+      <p class="hud text-clay">Tres pasos</p>
+      <h2 id="inst" class="mt-3 text-3xl sm:text-4xl">
         Instalarlo lleva un click
       </h2>
 
       <ol class="mt-10 space-y-4">
         {
-          pasos.map(({ n, t, d }) => (
-            <li class="flex gap-5 rounded-2xl border border-ink-line bg-ink p-5">
-              <span class="font-mono text-sm text-clay">{n}</span>
+          pasos.map(({ t, d }, i) => (
+            <li class="flex gap-5 rounded-2xl border border-ink-line bg-ink-soft p-5">
+              <span class="mini mt-1 text-clay">{`0${i + 1}`}</span>
               <div>
                 <h3 class="font-semibold text-cream">{t}</h3>
                 <p class="mt-1 text-sm leading-relaxed text-ash">{d}</p>
@@ -385,18 +445,22 @@ const pasos = [
         <span class="flex items-center gap-4">
           <Sprite state="termino" height={56} />
           <span>
-            <span class="block font-semibold text-cream">Descargar Bichito</span>
-            <span class="block font-mono text-xs text-ash">
+            <span class="block font-semibold text-cream">Descargar Bichito</span
+            >
+            <span class="mini block text-ash">
               {descarga.nombre} · {descarga.peso}
             </span>
           </span>
         </span>
-        <span class="rounded-lg bg-clay px-5 py-2.5 text-sm font-semibold text-ink">
-          Descargar
-        </span>
+        <span
+          class="rounded-lg bg-clay px-5 py-2.5 text-sm font-semibold text-ink"
+          >Descargar</span
+        >
       </a>
 
-      <p class="mt-6 rounded-xl border border-ink-line bg-ink p-4 text-sm text-ash">
+      <p
+        class="mt-6 rounded-xl border border-ink-line bg-ink-soft p-4 text-sm text-ash"
+      >
         <strong class="text-cream">WSL queda afuera:</strong> tiene su propio
         <code class="font-mono text-clay">~/.claude</code> en el sistema de archivos
         de Linux, y un comando de Windows no se ejecutaría ahí.
@@ -413,7 +477,30 @@ const pasos = [
         <Sprite state="dormido" height={44} />
         <span>Bichito — hecho para Claude Code</span>
       </div>
-      <span class="font-mono text-xs">Astro + Tailwind · Python + Rust</span>
+      <span class="mini">Astro + Tailwind · Python + Rust</span>
     </div>
   </footer>
 </Base>
+
+<script>
+  // Las secciones asoman al entrar en pantalla. Si el navegador no tiene
+  // IntersectionObserver, quedan visibles y listo.
+  const objetivos = document.querySelectorAll(".asoma");
+  if (!("IntersectionObserver" in window)) {
+    objetivos.forEach((el) => el.classList.add("visible"));
+  } else {
+    const io = new IntersectionObserver(
+      (entradas) => {
+        entradas.forEach((e, i) => {
+          if (!e.isIntersecting) return;
+          const el = e.target as HTMLElement;
+          el.style.transitionDelay = `${Math.min(i, 5) * 60}ms`;
+          el.classList.add("visible");
+          io.unobserve(el);
+        });
+      },
+      { threshold: 0.15, rootMargin: "0px 0px -8% 0px" },
+    );
+    objetivos.forEach((el) => io.observe(el));
+  }
+</script>

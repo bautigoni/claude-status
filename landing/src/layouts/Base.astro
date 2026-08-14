@@ -12,14 +12,31 @@ const { title, description } = Astro.props;
 <html lang="es-AR">
   <head>
     <meta charset="utf-8" />
+    <script is:inline>
+      // marca que hay JS: de esto cuelga el aparecer-al-leer, para que sin
+      // JavaScript el contenido se vea igual
+      document.documentElement.classList.add("js");
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#16130f" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
+    <meta property="og:image" content="/sprites/cocinando.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- la unica que se descarga: sin preload, el titulo parpadea -->
+    <link
+      rel="preload"
+      href="/fonts/pixelify-sans.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
   </head>
   <body class="bg-ink font-sans antialiased">
     <slot />
