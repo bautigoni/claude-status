@@ -341,6 +341,11 @@ fn write_state(dir: &Path, state: &str, payload: &str) {
     let mut since = t;
     let mut focus: Vec<u32> = Vec::new();
     let mut habia_focus = false;
+    // El nombre se fija en la primera escritura de la sesion y no se toca mas:
+    // el cwd del payload es el de ese momento, asi que si Claude hace un cd la
+    // sesion pasaria a llamarse "dist" o "src" y el bichito dejaria de servir
+    // justo para lo que existe, que es saber cual es cual.
+    let mut nombre = String::new();
 
     // El estado anterior se lee siempre (no solo en "working"): de ahi salen el
     // arranque del turno y la cadena hasta la terminal. Antes se leia solo al
@@ -353,6 +358,11 @@ fn write_state(dir: &Path, state: &str, payload: &str) {
             if let Some(f) = v.get("focus").and_then(|f| f.as_array()) {
                 habia_focus = true;
                 focus = f.iter().filter_map(|x| x.as_u64().map(|n| n as u32)).collect();
+            }
+            if let Some(p) = v.get("proyecto").and_then(|p| p.as_str()) {
+                if !p.is_empty() {
+                    nombre = p.to_string();
+                }
             }
             if state == "working" {
                 // Cuando Claude hace una pregunta, PreToolUse dispara DOS hooks
@@ -385,7 +395,7 @@ fn write_state(dir: &Path, state: &str, payload: &str) {
         "ts": t,
         "since": since,
         "focus": focus,
-        "proyecto": proyecto(&payload_json),
+        "proyecto": if nombre.is_empty() { proyecto(&payload_json) } else { nombre },
     })
     .to_string();
     let tmp = path.with_extension("tmp");
