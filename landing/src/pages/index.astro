@@ -21,12 +21,16 @@ const descarga = {
 // gesto -> que pasa. Es la seccion que el usuario puede ir probando arriba.
 const gestos = [
   {
+    gesto: "Varios Claude",
+    que: "Hay un bichito por sesión abierta, en fila y con el nombre del proyecto abajo. El que te espera queda a todo color y el resto se apaga: con seis Claude a la vez, lo que necesitás saber es cuál.",
+  },
+  {
     gesto: "Arrastrar",
     que: "Lo movés y ahí se queda para siempre. Si lo arrastrás mientras te espera, el centro deja de tironear hasta la próxima pregunta.",
   },
   {
     gesto: "Click",
-    que: "Te lleva a la terminal de esa sesión: la ventana pasa al frente, aunque estuviera minimizada. Con dos Claude abiertos, te lleva al que te está esperando.",
+    que: "Clickeás un bichito y la terminal de esa sesión pasa al frente, aunque estuviera minimizada. Si tenés todo en pestañas de la misma ventana, levanta la ventana: Windows no expone las pestañas.",
   },
   {
     gesto: "Botón derecho",
@@ -199,8 +203,8 @@ const pasos = [
         No hay que leer nada
       </h2>
       <p class="mt-3 max-w-2xl text-ash">
-        La pose ya te dice en qué anda. El texto de abajo es el detalle, no el
-        mensaje.
+        La pose ya te dice en qué anda, y hay uno por sesión: el nombre del
+        proyecto va abajo de cada uno.
       </p>
 
       <ul class="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
