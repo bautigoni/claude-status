@@ -6,6 +6,9 @@ interface Props {
   description: string;
 }
 const { title, description } = Astro.props;
+
+// absoluta a proposito: Facebook, X y compania ignoran las og:image relativas
+const portada = new URL("/og.png", Astro.site).href;
 ---
 
 <!doctype html>
@@ -26,7 +29,8 @@ const { title, description } = Astro.props;
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="/sprites/cocinando.png" />
+    <meta property="og:image" content={portada} />
+    <meta property="og:url" content={Astro.site} />
     <meta name="twitter:card" content="summary_large_image" />
 
     <!-- la unica que se descarga: sin preload, el titulo parpadea -->
