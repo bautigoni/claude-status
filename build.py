@@ -68,11 +68,14 @@ def main():
         "--collect-all", "webview",
         "--collect-all", "pystray",
         "--hidden-import", "pystray._win32",
-        # se importan dentro de funciones, asi que hay que nombrarlos explicito
+        # bichito_app.py los importa dentro de funciones, asi que PyInstaller
+        # no los ve. Sin esto el bundle sale sin bichito_panel/bichito_pet
+        # (y por lo tanto sin bichito_usage, bichito_core y bichito_install).
         "--hidden-import", "bichito_pet",
         "--hidden-import", "bichito_panel",
         "--hidden-import", "bichito_install",
         "--hidden-import", "bichito_core",
+        "--hidden-import", "bichito_usage",
         "--exclude-module", "numpy",
         "--exclude-module", "pytest",
     ]

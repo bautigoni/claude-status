@@ -54,7 +54,7 @@ const pasos = [
 
 <Base
   title="Bichito — la mascota que te avisa cuándo Claude Code terminó"
-  description="Una mascota de escritorio para Claude Code: te muestra si está trabajando, si te está esperando o si ya terminó, sin que mires la terminal."
+  description="Una mascota de escritorio para Claude Code: te muestra si está trabajando, si te está esperando o si ya terminó, y el % de uso de tu plan, sin que mires la terminal."
 >
   <!-- ================= HERO ================= -->
   <header class="relative overflow-hidden">
@@ -84,7 +84,8 @@ const pasos = [
 
       <p class="mx-auto mt-6 max-w-xl text-lg text-pretty text-ash sm:text-xl">
         Un bichito que flota en tu escritorio, cocina mientras Claude trabaja y
-        te avisa por voz cuando termina o cuando necesita algo tuyo.
+        te avisa por voz cuando termina o cuando necesita algo tuyo. Y si querés,
+        te muestra el % que llevas del plan.
       </p>
 
       <div class="mt-9 flex flex-wrap items-center justify-center gap-3">
@@ -145,6 +146,102 @@ const pasos = [
         ))
       }
     </ul>
+  </section>
+
+  <!-- ================= PLAN ================= -->
+  <section class="mx-auto max-w-6xl px-6 py-20" aria-labelledby="plan">
+    <div class="grid gap-12 lg:grid-cols-2 lg:items-center">
+      <div>
+        <h2 id="plan" class="text-3xl font-semibold tracking-tight sm:text-4xl">
+          Sabé cuánto te queda del plan
+        </h2>
+        <p class="mt-4 leading-relaxed text-ash">
+          Dos interruptores independientes, apagados por defecto. Prendé el que
+          te sirva: <strong class="text-cream">sesión 5h</strong>,
+          <strong class="text-cream">semanal</strong>, o los dos. Se muestran en
+          una línea arriba del cronómetro del bichito, y en tarjetas grandes en
+          el panel.
+        </p>
+        <p class="mt-4 leading-relaxed text-ash">
+          Lee el token de
+          <code class="font-mono text-clay">~/.claude/.credentials.json</code> —
+          el mismo que usa <code class="font-mono text-clay">/usage</code> de
+          Claude Code. No consulta endpoints no oficiales.
+        </p>
+        <ul class="mt-6 space-y-2.5 text-sm text-ash">
+          <li class="flex gap-3">
+            <span class="mt-1.5 size-1.5 shrink-0 rounded-full bg-clay"></span>
+            <span>
+              <strong class="text-cream">Cuesta 1 token de Haiku</strong> por
+              lectura. La API devuelve el % en los headers
+              <code class="font-mono text-clay">anthropic-ratelimit-unified-*</code>.
+            </span>
+          </li>
+          <li class="flex gap-3">
+            <span class="mt-1.5 size-1.5 shrink-0 rounded-full bg-clay"></span>
+            <span>
+              Polling cada <strong class="text-cream">60 segundos</strong>;
+              panel y mascota leen del mismo archivo.
+            </span>
+          </li>
+          <li class="flex gap-3">
+            <span class="mt-1.5 size-1.5 shrink-0 rounded-full bg-clay"></span>
+            <span>
+              Cambia de color al <strong class="text-cream">70%</strong>
+              (warn) y al <strong class="text-cream">90%</strong> (crit).
+            </span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="grid gap-4 sm:grid-cols-2">
+        <div class="rounded-2xl border border-ink-line bg-ink-soft p-5">
+          <div class="font-mono text-[10px] font-semibold uppercase tracking-[.08em] text-ash">
+            Sesion 5h
+          </div>
+          <div class="mt-2 text-4xl font-semibold tracking-tight text-clay">
+            45%
+          </div>
+          <div class="mt-1 text-xs text-ash">Reinicia en 2h 14m</div>
+          <div class="mt-4 h-1.5 overflow-hidden rounded-full bg-ink">
+            <div class="h-full w-[45%] rounded-full bg-clay"></div>
+          </div>
+        </div>
+
+        <div class="rounded-2xl border border-ink-line bg-ink-soft p-5">
+          <div class="font-mono text-[10px] font-semibold uppercase tracking-[.08em] text-ash">
+            Semanal
+          </div>
+          <div class="mt-2 text-4xl font-semibold tracking-tight" style="color:#d9a057">
+            78%
+          </div>
+          <div class="mt-1 text-xs text-ash">Reinicia en 4d 6h</div>
+          <div class="mt-4 h-1.5 overflow-hidden rounded-full bg-ink">
+            <div class="h-full w-[78%] rounded-full" style="background:#d9a057"></div>
+          </div>
+        </div>
+
+        <div class="rounded-2xl border border-ink-line bg-ink p-5 sm:col-span-2">
+          <div class="flex items-center gap-4">
+            <div class="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-ink-soft">
+              <Sprite state="cocinando" height={56} />
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="font-mono text-[10px] font-semibold tracking-[.08em]" style="color:#d9a057">
+                5h 45%  sem 78%
+              </div>
+              <div class="mt-1 truncate text-sm text-ash">
+                Cocinando  ·  3m 12s
+              </div>
+            </div>
+          </div>
+          <div class="mt-3 text-[11px] leading-relaxed text-ash">
+            Así se ve en la mascota: el % arriba del label principal, en color
+            del bichito.
+          </div>
+        </div>
+      </div>
+    </div>
   </section>
 
   <!-- ================= COMO FUNCIONA ================= -->

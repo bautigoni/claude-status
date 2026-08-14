@@ -22,12 +22,14 @@ from ctypes import wintypes
 from PIL import Image, ImageChops, ImageDraw, ImageFont
 
 import bichito_core as core
+import bichito_usage
 
 LOCK_PORT = 50519      # instancia unica: si el puerto esta tomado, ya hay uno
 POLL_MS = 250          # cada cuanto se relee state/ y la config
 WORKING_TIMEOUT = 900  # s sin latido -> se asume que la sesion murio (Esc, cierre)
 STALE = 86400          # s -> archivo de sesion viejo, se borra
 CELEBRATE = 2.4        # s de festejo antes de dormirse
+BANDA_USO = 24         # px de ventana extra debajo del sprite, para el % del plan
 
 TEXTO = {"cocinando": "Cocinando", "esperando": "Te espera",
          "termino": "Listo", "dormido": ""}
@@ -195,6 +197,13 @@ class Bichito:
             self.manifest = json.load(fh)
         self.w, self.h = self.manifest["size"]
         self.text_y = self.manifest["text_y"]
+        # La ventana es mas alta que el sprite: el % del plan va en una franja
+        # propia debajo. En la banda de texto del sprite no entran dos renglones
+        # (son 28px y el label ya los usa), asi que compartirla dejaba el uso
+        # dibujado ENCIMA del "Cocinando 29m 07s" y no se leia ninguno de los dos.
+        # Con los toggles apagados la franja queda transparente, y una zona
+        # transparente de una layered window no se come los clicks.
+        self.wh = self.h + BANDA_USO
         self.frames = {
             name: [Image.open(core.resource_path("assets", name, f"{i:02d}.png")).convert("RGBA")
                    for i in range(info["frames"])]
@@ -216,10 +225,10 @@ class Bichito:
         self.x, self.y = self.home
         self.fx, self.fy = float(self.x), float(self.y)
         self.center = ((self.root.winfo_screenwidth() - self.w) // 2,
-                       (self.root.winfo_screenheight() - self.h) // 2)
-        self.root.geometry(f"{self.w}x{self.h}+{self.x}+{self.y}")
+                       (self.root.winfo_screenheight() - self.wh) // 2)
+        self.root.geometry(f"{self.w}x{self.wh}+{self.x}+{self.y}")
         self.root.update_idletasks()
-        self.layer = Layered(self.root, self.w, self.h)
+        self.layer = Layered(self.root, self.w, self.wh)
 
         self.visible = True
         self.visual = "dormido"
@@ -228,8 +237,12 @@ class Bichito:
         self.frame_i = 0
         self.celebrate_until = 0.0
         self.frozen = ""
+        self.usage = None
         self._cache = (None, None)
         self._drag = None
+        # lo arrastraste durante esta espera: el centro deja de tironear hasta
+        # que deje de esperar
+        self.pinned = False
 
         self.root.bind("<Button-1>", self.drag_start)
         self.root.bind("<B1-Motion>", self.drag_move)
@@ -246,6 +259,13 @@ class Bichito:
 
         self.tray = Tray(self)
         self.tray.start()
+
+        # poller de usage: mantiene state/usage.json fresco para que esta
+        # ventanita sola (sin el panel) pueda mostrar el %. Cuando tambien esta
+        # abierto el panel, hay dos poller corriendo pero el state file es el
+        # mismo y el cache evita duplicar fetches utiles.
+        self.poller = bichito_usage.Poller()
+        self.poller.start()
 
         self.poll()
         self.animate()
@@ -270,6 +290,7 @@ class Bichito:
 
     def quit_all(self):
         self.tray.stop()
+        self.poller.stop()
         self.root.destroy()
 
     # --- posicion ---
@@ -290,9 +311,15 @@ class Bichito:
 
     def glide(self):
         """Acerca la posicion dibujada al destino. Mientras espera el destino es
-        el centro de la pantalla; el resto del tiempo, su lugar de siempre."""
-        tx, ty = self.center if (self.visual == "esperando"
-                                 and self.cfg["center_on_wait"]) else self.home
+        el centro de la pantalla; el resto del tiempo, su lugar de siempre.
+
+        Si lo agarraste con el mouse manda tu mano: sin eso el centro lo vuelve a
+        chupar en el proximo tick (16ms) y la ventanita queda inmovible justo
+        cuando mas estorba, en el medio de la pantalla.
+        """
+        al_centro = (self.visual == "esperando" and self.cfg["center_on_wait"]
+                     and not self.pinned)
+        tx, ty = self.center if al_centro else self.home
         if abs(tx - self.fx) < 1 and abs(ty - self.fy) < 1:
             self.fx, self.fy = float(tx), float(ty)
         else:
@@ -309,6 +336,9 @@ class Bichito:
             self.y = e.y_root - self._drag[1]
             self.fx, self.fy = float(self.x), float(self.y)
             self.home = (self.x, self.y)   # arrastrarlo redefine su lugar
+            # solo al mover, no en el click: un click suelto no tiene por que
+            # cancelar el salto al centro
+            self.pinned = True
             # solo cambio la posicion: se reusa el bitmap ya premultiplicado en
             # vez de recomponerlo en cada evento de movimiento
             if self._cache[1] is not None:
@@ -348,6 +378,10 @@ class Bichito:
             self.root.wm_attributes("-topmost", self.topmost)
         self.cfg = cfg
 
+        # el poller ya actualiza state/usage.json; lo leemos aca porque ya
+        # estamos en el loop que re-renderiza cada 250ms y el read es barato
+        self.usage = bichito_usage.read()
+
         raw, since, timed_out = read_state()
         if raw != self.raw:
             # se festeja solo si termino de verdad (hook Stop). Si la sesion se
@@ -365,42 +399,91 @@ class Bichito:
 
     def set_visual(self, name):
         if name != self.visual:
+            if name != "esperando":
+                self.pinned = False   # la proxima espera vuelve a ir al centro
             self.visual = name
             self.frame_i = 0
 
     # --- dibujo ---
     def label(self):
-        if self.visual == "termino":
-            return f"Listo  {self.frozen}".strip() if self.cfg["timer"] else "Listo"
-        base = TEXTO.get(self.visual, "")
-        if base and self.since and self.cfg["timer"]:
-            return f"{base}  {fmt(time.time() - self.since)}"
-        return base
+        """Devuelve (texto_principal, texto_de_usage).
 
-    def compose(self, txt):
-        img = self.frames[self.visual][self.frame_i].copy()
+        El principal se dibuja en el area grande de abajo (como hoy). El de
+        usage, solo si los toggles estan prendidos, arriba en una linea mas
+        chica. Si el principal queda vacio (dormido) el usage se centra
+        verticalmente para no quedar raro arriba solo.
+        """
+        if self.visual == "termino":
+            main = f"Listo  {self.frozen}".strip() if self.cfg["timer"] else "Listo"
+        else:
+            base = TEXTO.get(self.visual, "")
+            if base and self.since and self.cfg["timer"]:
+                main = f"{base}  {fmt(time.time() - self.since)}"
+            else:
+                main = base
+        return main, self._usage_text()
+
+    def _usage_text(self):
+        cfg = self.cfg
+        if not (cfg.get("plan_5h") or cfg.get("plan_weekly")):
+            return ""
+        u = self.usage
+        if not u or not u.get("ok"):
+            return ""          # sin dato fresco, no se muestra: prefiere callar
+        parts = []
+        if cfg.get("plan_5h"):
+            sec = u.get("five_hour") or {}
+            p = sec.get("pct")
+            if isinstance(p, (int, float)):
+                parts.append(f"5h {int(p)}%")
+        if cfg.get("plan_weekly"):
+            sec = u.get("seven_day") or {}
+            p = sec.get("pct")
+            if isinstance(p, (int, float)):
+                parts.append(f"sem {int(p)}%")
+        return "  ".join(parts)
+
+    def _draw_text(self, img, txt, font, hh, top, fill=(255, 246, 236, 255)):
+        """Dibuja una linea de texto centrada en la franja que arranca en `top`
+        y mide `hh` de alto (a mitad de escala; se redimensiona 2x con NEAREST,
+        que es lo que le conserva el aire de pixel art).
+
+        `top` es un parametro y no una constante porque antes todas las lineas
+        se pegaban en text_y: dibujar dos era dibujarlas una arriba de la otra.
+        """
+        hw = self.w // 2
+        tmp = Image.new("RGBA", (hw, hh), (0, 0, 0, 0))
+        d = ImageDraw.Draw(tmp)
+        bb = d.textbbox((0, 0), txt, font=font)
+        tx = (hw - (bb[2] - bb[0])) // 2 - bb[0]
+        ty = (hh - (bb[3] - bb[1])) // 2 - bb[1]
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                if dx or dy:
+                    d.text((tx + dx, ty + dy), txt, font=font, fill=(18, 12, 8, 240))
+        d.text((tx, ty), txt, font=font, fill=fill)
+        img.alpha_composite(tmp.resize((hw * 2, hh * 2), Image.NEAREST),
+                            (0, top))
+
+    def compose(self, txt, usage_txt):
+        """Sprite arriba, label en la banda del sprite, % del plan en la franja
+        de abajo. Cada uno en su renglon: no se estorban ni compiten por lugar,
+        y el label principal queda exactamente donde estaba siempre."""
+        img = Image.new("RGBA", (self.w, self.wh), (0, 0, 0, 0))
+        img.alpha_composite(self.frames[self.visual][self.frame_i], (0, 0))
         if txt:
-            # el texto se dibuja a mitad de escala y se agranda con NEAREST:
-            # queda pixelado a juego con el sprite
-            hw, hh = self.w // 2, (self.h - self.text_y) // 2
-            tmp = Image.new("RGBA", (hw, hh), (0, 0, 0, 0))
-            d = ImageDraw.Draw(tmp)
-            bb = d.textbbox((0, 0), txt, font=self.font)
-            tx = (hw - (bb[2] - bb[0])) // 2 - bb[0]
-            ty = (hh - (bb[3] - bb[1])) // 2 - bb[1]
-            for dx in (-1, 0, 1):
-                for dy in (-1, 0, 1):
-                    if dx or dy:
-                        d.text((tx + dx, ty + dy), txt, font=self.font, fill=(18, 12, 8, 240))
-            d.text((tx, ty), txt, font=self.font, fill=(255, 246, 236, 255))
-            img.alpha_composite(tmp.resize((hw * 2, hh * 2), Image.NEAREST), (0, self.text_y))
+            self._draw_text(img, txt, self.font,
+                            (self.h - self.text_y) // 2, self.text_y)
+        if usage_txt:
+            self._draw_text(img, usage_txt, self.font, BANDA_USO // 2, self.h,
+                            fill=(217, 170, 120, 255))   # tono del bichito
         return premultiply(img)
 
     def render(self, force=False):
-        txt = self.label()
-        key = (self.visual, self.frame_i, txt)
+        txt, usage_txt = self.label()
+        key = (self.visual, self.frame_i, txt, usage_txt)
         if force or key != self._cache[0]:
-            self._cache = (key, self.compose(txt))
+            self._cache = (key, self.compose(txt, usage_txt))
         if self.visible:
             self.layer.blit(self._cache[1], self.x, self.y)
 

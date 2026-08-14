@@ -10,6 +10,12 @@ panel para prender y apagar cada cosa.
 | **Te espera** + voz | salta al centro de la pantalla | te hace una pregunta, o pide permiso |
 | **Listo** + tiempo congelado | festeja con chispas (~2,4s) | `Stop` |
 | dormido, sin texto | achatado, con zzz | después del festejo |
+| solo voz, no se mueve | se queda donde está | terminó un agente en segundo plano |
+
+El salto al centro es **solo para cuando Claude está frenado esperándote**. Que
+termine un agente, que se autentique o que pasen 60s sin que escribas no lo
+mueven de su lugar. Y si igual te estorba, arrastralo: mientras dure esa espera
+se queda donde lo dejaste.
 
 ## Instalar
 
@@ -55,8 +61,8 @@ siempre.
 
 ## El panel
 
-Seis interruptores: general, bichito flotante, voz, cronómetro, saltar al centro,
-siempre encima y arranque automático.
+Ocho interruptores: general, bichito flotante, voz, cronómetro, saltar al centro,
+siempre encima, arranque automático y dos de % de uso del plan (5h y semanal).
 
 Todos tienen efecto **al instante**, sin reiniciar Claude Code. Eso es a propósito
 y define la arquitectura: `settings.json` se escribe **una sola vez** al instalar,
@@ -71,6 +77,49 @@ Los hooks ajenos se respetan. Al instalar solo se sacan los propios y el llamado
 directo al script de voz (que pasa a estar gobernado por el panel), y al
 desinstalar ese llamado se restituye tal cual estaba. Hay backup en
 `~/.claude/settings.json.bak-bichito`.
+
+## % del plan (5h y semanal)
+
+Dos interruptores independientes. Cada uno muestra el % de su ventana, con la
+barra coloreada (`warn` desde 70%, `crit` desde 90%) y la cuenta regresiva al
+reset (`Reinicia en 2h 14m`). Apagados por defecto: si no los prendés, Bichito
+sigue comportándose exactamente como antes.
+
+| Dónde | Qué se ve |
+|---|---|
+| **Panel** | dos tarjetas grandes, lado a lado cuando ambas están prendidas, full-width si solo una |
+| **Mascota** | una línea chiquita arriba del label principal (`5h 45%  sem 28%`), en color del bichito. Si el principal está vacío (dormido), el % ocupa todo el espacio |
+
+**De dónde sale el dato.** Igual que
+[Clawdmeter](https://github.com/HermannBjorgvin/Clawdmeter) (1.9k stars, el repo
+canónico para esto): se manda una llamada mínima a `api.anthropic.com/v1/messages`
+con Haiku (`max_tokens: 1`, **cuesta un token, básicamente gratis**) y se leen los
+headers `anthropic-ratelimit-unified-5h-utilization` y `-7d-utilization` de la
+respuesta. Es el mismo método que el `/usage` de Claude Code usa por dentro; no
+es zona gris, no consulta endpoints no oficiales.
+
+**Token.** Se lee solo de `~/.claude/.credentials.json` (el OAuth de `claude
+login`). No se sube a ningún lado, no se loguea, no se persiste fuera de la
+llamada HTTP que ya hiciste. Si el token no está o expiró, las tarjetas del
+panel muestran el hint correspondiente:
+
+| Error | Mensaje |
+|---|---|
+| `no_token` | `Hace falta claude login para leer el plan.` |
+| `http_401` | `Token expirado. Volve a claude login.` |
+| `no_headers` | `Tu plan no expone los headers de uso (enterprise u overage).` |
+| `network` | `Sin conexion con Anthropic.` |
+
+La mascota, en cambio, **prefiere callar** en esos casos: muestra el % solo
+cuando hay dato fresco válido. Si el plan no expone esos headers (planes
+enterprise u overage) las tarjetas del panel lo aclaran explícitamente; ahí
+queda en manos del usuario.
+
+**Polling.** Un thread en background dentro de bichito (`bichito_usage.Poller`)
+hace un fetch cada 60s y escribe `state/usage.json` de forma atómica. El panel
+y la mascota leen ese archivo. Si los dos procesos están abiertos a la vez hay
+dos threads haciendo fetch, pero es un request cada 60s y el archivo es chico;
+no vale la pena un proceso separado.
 
 ## Cómo está armado
 
@@ -110,6 +159,17 @@ festeja: el tiempo sería inventado.
   el hook con matcher específico, Claude te preguntaba algo y el bichito seguía
   cocinando en silencio. `Notification` solo dispara para pedidos de permiso o
   tras 60s de inactividad, demasiado tarde para servir de aviso.
+- **Bajo `Notification` entran cosas muy distintas** y el evento solo no alcanza
+  para saber cuál. El payload trae `notification_type`: `permission_prompt`,
+  `worker_permission_prompt`, `agent_needs_input`, `elicitation_dialog`,
+  `elicitation_url_dialog` son «te necesito»; `agent_completed` es «terminó un
+  agente» (solo voz); `idle_prompt`, `auth_success`, `computer_use_enter/exit`,
+  `elicitation_complete`, `elicitation_response` y `push_notification` son ruido.
+  Sin esa separación, terminar un agente te plantaba el bichito en el medio de la
+  pantalla diciendo que esperaba una respuesta que nadie había pedido.
+  La clasificación vive en el hook y **no** en un `matcher` de `settings.json`:
+  Claude Code matchea `Notification` contra el `notification_type`, pero eso es
+  reciente, y con una versión anterior un hook con matcher no dispararía nunca.
 - **La forma del comando de hook** tiene que ser válida en cmd, PowerShell y sh a
   la vez: el primer token va **sin comillas y sin espacios**, y con **barras
   normales**. PowerShell trata una línea que arranca con comillas como un string;
@@ -132,6 +192,7 @@ festeja: el tiempo sería inventado.
 | `bichito_panel.py` | el panel, UI en HTML/CSS sobre pywebview |
 | `bichito_install.py` | escribe y revierte los hooks |
 | `bichito_core.py` | rutas y config compartidas |
+| `bichito_usage.py` | % del plan (5h y semanal): fetchea `api.anthropic.com`, escribe `state/usage.json` |
 | `hook/` | el crate de Rust del camino caliente |
 | `voz.ps1` | sintetiza y reproduce; toma el texto del JSON de stdin |
 | `landing/` | sitio de presentación (Astro + Tailwind), ver su propio README |

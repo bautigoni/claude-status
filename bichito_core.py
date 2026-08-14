@@ -30,6 +30,12 @@ DEFAULTS = {
     # {proyecto} se reemplaza por el nombre de la carpeta del proyecto
     "msg_done": "El proyecto {proyecto} terminó",
     "msg_waiting": "El proyecto {proyecto} está esperando tu respuesta",
+    # usage del plan: apagados por defecto. Prenderlos hace que el bichito y
+    # el panel muestren el % de sesion 5h y/o semanal. El token se lee solo
+    # de ~/.claude/.credentials.json; si no esta, se muestra un hint pidiendo
+    # `claude login` y nada se rompe.
+    "plan_5h": False,
+    "plan_weekly": False,
 }
 
 

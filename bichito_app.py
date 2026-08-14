@@ -6,9 +6,21 @@
 
 Los imports pesados van adentro de cada rama a proposito: nada que no se use en
 el camino elegido llega a cargarse.
+
+El import explicito de los bichito_* en el top-level es para PyInstaller: con
+ellos dentro de main() el analisis estatico no los ve y el bundle sale sin
+panel/pet/install/core/usage. Los modulos ya no se cargan solos en el import
+(gracias al branch de abajo), asi que el costo es solo unos milisegundos al
+arranque y que todos queden disponibles en sys.modules.
 """
 import sys
 import traceback
+
+import bichito_core
+import bichito_install
+import bichito_panel
+import bichito_pet
+import bichito_usage
 
 
 def main():

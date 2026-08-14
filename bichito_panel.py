@@ -10,18 +10,22 @@ import json
 import os
 import subprocess
 import sys
+import threading
 
 import bichito_core as core
 import bichito_install as installer
+import bichito_usage
 
 TOGGLES = [
     ("enabled", "Interruptor general", "Apaga todo de una. Los hooks quedan puestos pero no hacen nada."),
     ("pet", "Bichito flotante", "La ventanita que cocina, espera y festeja."),
     ("voice", "Voz al terminar", "Te avisa hablando cuando termina o cuando necesita algo."),
     ("timer", "Cronometro", "El tiempo debajo del bichito."),
-    ("center_on_wait", "Saltar al centro", "Cuando te hace una pregunta se va al medio de la pantalla, y despues vuelve."),
+    ("center_on_wait", "Saltar al centro", "Cuando te hace una pregunta o pide permiso se va al medio de la pantalla, y despues vuelve. Arrastralo y se queda donde lo dejes."),
     ("always_on_top", "Siempre encima", "Que no se lo tapen otras ventanas."),
     ("autostart", "Arranque automatico", "Levantarlo solo al abrir Claude Code."),
+    ("plan_5h", "% plan 5h", "Muestra el consumo de la sesion actual. Lee tu token de Claude Code; se desactiva en cualquier momento."),
+    ("plan_weekly", "% plan semanal", "Muestra el consumo semanal y la hora de reinicio. Lee tu token de Claude Code."),
 ]
 
 
@@ -69,7 +73,14 @@ class Api:
             "data_dir": core.data_dir(),
             "msg_done": cfg.get("msg_done", core.DEFAULTS["msg_done"]),
             "msg_waiting": cfg.get("msg_waiting", core.DEFAULTS["msg_waiting"]),
+            "usage": bichito_usage.read(),
         }
+
+    def usage(self):
+        # se refresca solo desde el JS sin tocar la config ni re-renderizar
+        # toda la UI: asi las tarjetas de % actualizan sin perder foco en los
+        # inputs de los mensajes
+        return bichito_usage.read()
 
     def set_text(self, key, value):
         if key not in ("msg_done", "msg_waiting"):
@@ -210,6 +221,25 @@ h1 { font-size: 20px; font-weight: 650; letter-spacing: .2px; }
 .hint { font-size: 10.5px; color: #6f645a; margin-top: 5px; }
 .hint code { color: #d97757; font-family: Consolas, monospace; }
 
+.usage { margin-top: 12px; display: none; gap: 8px; }
+.usage.show { display: flex; }
+.usage-card { flex: 1; background: #211c16; border: 1px solid #322a21; border-radius: 12px;
+              padding: 12px 14px; }
+.usage-label { font-size: 10.5px; font-weight: 650; letter-spacing: .08em;
+               text-transform: uppercase; color: #8c7f72; margin-bottom: 6px; }
+.usage-pct { font-size: 26px; font-weight: 600; letter-spacing: -0.5px; }
+.usage-pct.warn { color: #d9a057; }
+.usage-pct.crit { color: #d97a57; }
+.usage-reset { font-size: 10.5px; color: #6f645a; margin-top: 3px; }
+.usage-err { font-size: 10.5px; color: #c47a5e; margin-top: 5px; line-height: 1.4; }
+.usage-err code { font-family: Consolas, monospace; color: #d97757; }
+.usage-bar { height: 3px; background: #2b2419; border-radius: 2px; margin-top: 8px;
+             overflow: hidden; }
+.usage-bar-fill { height: 100%; background: #d97757; transition: width .6s; }
+.usage-bar-fill.warn { background: #d9a057; }
+.usage-bar-fill.crit { background: #d97a57; }
+.usage-bar-fill.idle { background: #3d342a; }
+
 .note { text-align: center; font-size: 11.5px; color: #8c7f72; margin-top: 13px; line-height: 1.6; }
 .note b { color: #d97757; font-weight: 600; }
 .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 20px;
@@ -231,6 +261,11 @@ a { color: #8c7f72; cursor: pointer; text-decoration: underline; }
 <div class="wrap">
   <div class="card master" id="master"></div>
   <div class="card" id="rows"></div>
+
+  <div class="usage" id="usage">
+    <div class="usage-card" id="uc-5h"></div>
+    <div class="usage-card" id="uc-w"></div>
+  </div>
 
   <div class="card msgs">
     <h2>Que dice la voz</h2>
@@ -266,6 +301,78 @@ function row(key, title, desc, on, dim) {
     ${sw(key, on)}</div>`;
 }
 
+function fmtReset(ts) {
+  if (!ts || ts <= 0) return '';
+  const ms = ts * 1000 - Date.now();
+  if (ms <= 0) return 'Reiniciando...';
+  const m = Math.round(ms / 60000);
+  if (m < 60) return `Reinicia en ${m} min`;
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  if (h < 24) return `Reinicia en ${h}h ${r}m`;
+  const d = Math.floor(h / 24);
+  return `Reinicia en ${d}d ${h % 24}h`;
+}
+
+function level(pct) {
+  if (pct >= 90) return 'crit';
+  if (pct >= 70) return 'warn';
+  return '';
+}
+
+function usageCard(key, label, blk) {
+  if (!st.config[key]) {
+    document.getElementById('uc-' + blk).innerHTML = '';
+    return;
+  }
+  const u = st.usage;
+  const wrap = document.getElementById('uc-' + blk);
+  if (!u) {
+    wrap.innerHTML = `<div class="usage-label">${label}</div>
+      <div class="usage-pct idle">—</div>
+      <div class="usage-err">cargando...</div>`;
+    return;
+  }
+  if (!u.ok) {
+    const msgs = {
+      no_token:   'Hace falta <code>claude login</code> para leer el plan.',
+      http_401:   'Token expirado. Volve a <code>claude login</code>.',
+      http_403:   'Sin permiso para leer el plan.',
+      no_headers: 'Tu plan no expone los headers de uso (enterprise u overage).',
+      network:    'Sin conexion con Anthropic.',
+    };
+    const msg = msgs[u.error] || ('Error: ' + (u.detail || u.error));
+    wrap.innerHTML = `<div class="usage-label">${label}</div>
+      <div class="usage-pct idle">—</div>
+      <div class="usage-err">${msg}</div>`;
+    return;
+  }
+  const sec = blk === '5h' ? u.five_hour : u.seven_day;
+  if (!sec) {
+    wrap.innerHTML = `<div class="usage-label">${label}</div>
+      <div class="usage-pct idle">—</div>`;
+    return;
+  }
+  const pct = Math.max(0, Math.min(100, sec.pct || 0));
+  const cls = level(pct);
+  wrap.innerHTML = `<div class="usage-label">${label}</div>
+    <div class="usage-pct ${cls}">${pct}%</div>
+    <div class="usage-reset">${fmtReset(sec.reset_at)}</div>
+    <div class="usage-bar"><div class="usage-bar-fill ${cls}" style="width:${pct}%"></div></div>`;
+}
+
+function renderUsage() {
+  const c = st.config;
+  const show5 = c.plan_5h && c.enabled;
+  const showW = c.plan_weekly && c.enabled;
+  const wrap = document.getElementById('usage');
+  wrap.classList.toggle('show', show5 || showW);
+  document.getElementById('uc-5h').style.display = show5 ? '' : 'none';
+  document.getElementById('uc-w').style.display = showW ? '' : 'none';
+  if (show5) usageCard('plan_5h', 'Sesion 5h', '5h');
+  if (showW) usageCard('plan_weekly', 'Semanal', 'w');
+}
+
 function render(s) {
   st = s;
   const c = s.config, master = c.enabled;
@@ -287,6 +394,8 @@ function render(s) {
   const md = document.getElementById('m_done'), mw = document.getElementById('m_wait');
   if (document.activeElement !== md) md.value = s.msg_done;
   if (document.activeElement !== mw) mw.value = s.msg_waiting;
+
+  renderUsage();
 
   document.getElementById('note').innerHTML = s.installed
     ? 'Se guarda solo. <a onclick="pywebview.api.open_folder()">Abrir carpeta de datos</a>'
@@ -319,6 +428,13 @@ document.getElementById('action').onclick = function () {
 document.getElementById('unbtn').onclick = function () {
   pywebview.api.uninstall().then(render);
 };
+
+// refresca las tarjetas de % sin volver a renderizar la UI: asi no se pierde
+// foco en los inputs ni parpadea todo el panel
+setInterval(() => {
+  if (!st || (!st.config.plan_5h && !st.config.plan_weekly)) return;
+  pywebview.api.usage().then(u => { st.usage = u; renderUsage(); });
+}, 30000);
 
 window.addEventListener('pywebviewready', () => {
   document.getElementById('pet').style.backgroundImage = 'url(data:image/png;base64,SPRITE)';
@@ -363,4 +479,12 @@ def run():
         width=446, height=height, resizable=False,
         frameless=True, easy_drag=True, background_color="#17140F",
     )
-    webview.start()
+    # poller de usage: actualiza state/usage.json cada 60s en background. Lo
+    # levanta el panel para que cuando esta abierto el % este siempre fresco,
+    # y la mascota lo lee de ahi sin tener que fetchear ella misma.
+    poller = bichito_usage.Poller()
+    poller.start()
+    try:
+        webview.start()
+    finally:
+        poller.stop()

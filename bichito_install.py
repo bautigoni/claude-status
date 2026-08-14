@@ -44,7 +44,12 @@ HOOKS = {
         ("AskUserQuestion|ExitPlanMode", "waiting --voice"),
     ],
     "PostToolUse": [("*", "working")],
-    "Notification": [(None, "waiting --voice")],
+    # Bajo Notification entran cosas muy distintas (te pide permiso, termino un
+    # agente en segundo plano, se autentico). El hook las separa leyendo
+    # notification_type del payload: aca no hay matcher porque el de este evento
+    # depende de una version reciente de Claude Code, y una version vieja dejaria
+    # al bichito mudo.
+    "Notification": [(None, "notify --voice")],
     "Stop": [(None, "idle --voice")],
     "SessionEnd": [(None, "idle")],
 }

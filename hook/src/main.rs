@@ -5,7 +5,11 @@
 //! asi el panel puede prender y apagar cosas al instante, sin reiniciar Claude
 //! Code y sin editar un archivo que tambien es del usuario.
 //!
-//!     bichito-hook.exe working|waiting|idle [--launch] [--voice]
+//!     bichito-hook.exe working|waiting|idle|notify [--launch] [--voice]
+//!
+//! `notify` es el del evento Notification: ahi el estado no lo decide argv sino
+//! el campo `notification_type` del payload, porque bajo el mismo evento entran
+//! cosas muy distintas (te pide permiso / termino un agente / se autentico).
 
 #![windows_subsystem = "windows"] // sin consola: si no, parpadea una ventana negra
 
@@ -71,6 +75,51 @@ fn session_id(payload: &str) -> String {
     }
 }
 
+/// Que hacer con un evento Notification.
+///
+/// Todos llegan por el mismo hook, pero no significan lo mismo: el que Claude
+/// te pida permiso es motivo para saltar al centro de la pantalla, y que
+/// termine un agente en segundo plano no.
+enum Kind {
+    /// Claude esta frenado esperandote: bichito al centro y voz de espera.
+    Waiting,
+    /// Termino algo. Solo se habla: NO se toca el estado, porque la
+    /// notificacion viene con el session_id de la sesion principal y esa puede
+    /// estar todavia trabajando. Escribir "idle" le cortaria el cronometro y le
+    /// haria festejar de mentira.
+    Done,
+    /// Ruido para el bichito: ni estado ni voz.
+    Ignore,
+}
+
+/// Clasifica por el campo `notification_type` del payload.
+///
+/// Devuelve None si no viene (Claude Code viejo, o el hook no es Notification):
+/// ahi manda el estado que llego por argv, o sea el comportamiento de siempre.
+fn notification_kind(payload: &str) -> Option<Kind> {
+    let tipo = serde_json::from_str::<serde_json::Value>(payload)
+        .ok()
+        .and_then(|v| v.get("notification_type")?.as_str().map(String::from))?;
+    Some(match tipo.as_str() {
+        // "<agente> finished": avisar y nada mas
+        "agent_completed" => Kind::Done,
+        // idle_prompt lo dispara Claude Code 60s despues de que te quedaste sin
+        // escribir. No es una pregunta: el Stop ya te aviso que habia terminado,
+        // y saltar al centro un minuto tarde es puro susto.
+        "idle_prompt"
+        | "auth_success"
+        | "computer_use_enter"
+        | "computer_use_exit"
+        | "elicitation_complete"
+        | "elicitation_response"
+        | "push_notification" => Kind::Ignore,
+        // permission_prompt, worker_permission_prompt, agent_needs_input,
+        // elicitation_dialog, elicitation_url_dialog y lo que Claude Code sume
+        // despues: se asume que te necesita, que es el default historico.
+        _ => Kind::Waiting,
+    })
+}
+
 struct Config {
     enabled: bool,
     pet: bool,
@@ -96,7 +145,11 @@ fn load_config(dir: &Path) -> Config {
     let Ok(txt) = fs::read_to_string(dir.join("config.json")) else {
         return cfg;
     };
-    let Ok(v) = serde_json::from_str::<serde_json::Value>(&txt) else {
+    // Si el archivo se toco desde PowerShell viene con BOM y serde_json lo
+    // rechaza entero: la config se perderia en silencio y esto se quedaria sin
+    // voz. El lado Python ya se defiende con utf-8-sig.
+    let txt = txt.trim_start_matches('\u{feff}');
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(txt) else {
         return cfg;
     };
     let flag = |k: &str, d: bool| v.get(k).and_then(|x| x.as_bool()).unwrap_or(d);
@@ -254,7 +307,7 @@ fn launch_pet(dir: &Path) {
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let Some(state) = args.first() else { return };
-    if !matches!(state.as_str(), "working" | "waiting" | "idle") {
+    if !matches!(state.as_str(), "working" | "waiting" | "idle" | "notify") {
         return;
     }
     let has = |f: &str| args.iter().any(|a| a == f);
@@ -267,7 +320,19 @@ fn main() {
 
     let payload = read_stdin();
 
-    if cfg.pet {
+    // La decision se toma con el payload y no con matchers en settings.json a
+    // proposito: los matchers de Notification necesitan una version reciente de
+    // Claude Code, y settings.json se escribe una sola vez, al instalar.
+    let (state, guardar) = match notification_kind(&payload) {
+        Some(Kind::Ignore) => return,
+        Some(Kind::Done) => ("idle", false), // "idle" -> la voz dice msg_done
+        Some(Kind::Waiting) => ("waiting", true),
+        // sin notification_type manda argv; "notify" cae en la espera de siempre
+        None if state == "notify" => ("waiting", true),
+        None => (state.as_str(), true),
+    };
+
+    if cfg.pet && guardar {
         write_state(&dir, state, &payload);
     }
     // El launch NO va atado a cfg.pet: ese proceso tambien sostiene el icono de
